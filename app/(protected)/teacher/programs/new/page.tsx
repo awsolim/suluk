@@ -2,19 +2,15 @@ import PageTopActions from "@/components/layout/PageTopActions";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-type TeacherRow = { id: string; full_name: string | null };
 type MosqueRow = { id: string; name: string | null };
 
-export default async function AdminNewProgramPage() {
+export default async function TeacherNewProgramPage() {
   const supabase = await createServerSupabaseClient(); // NEW: must await
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: teachersData, error: teachersErr } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("role", "teacher")
-    .order("created_at", { ascending: false });
-
-  if (teachersErr) throw teachersErr;
+  if (!user) redirect("/login");
 
   const { data: mosquesData, error: mosquesErr } = await supabase
     .from("mosques")
@@ -22,25 +18,25 @@ export default async function AdminNewProgramPage() {
     .order("created_at", { ascending: false });
 
   if (mosquesErr) throw mosquesErr;
-
-  const teachers = (teachersData ?? []) as TeacherRow[];
   const mosques = (mosquesData ?? []) as MosqueRow[];
 
   async function createProgramAction(formData: FormData) {
     "use server";
 
-    const supabaseServer = await createServerSupabaseClient(); // NEW: action needs its own client
+    const supabaseServer = await createServerSupabaseClient(); // NEW: server action client
+    const {
+      data: { user: actionUser },
+    } = await supabaseServer.auth.getUser();
+
+    if (!actionUser) redirect("/login");
 
     const title = String(formData.get("title") ?? "").trim(); // NEW
     const description = String(formData.get("description") ?? "").trim(); // NEW
-    const leadTeacherId = String(formData.get("lead_teacher_id") ?? "").trim(); // NEW
-    const mosqueMode = String(formData.get("mosque_mode") ?? "existing").trim(); // NEW
-
-    // NEW: program “extra” fields
     const priceMonthly = Number(formData.get("price_monthly") ?? 0); // NEW
     const thumbnailPath = String(formData.get("thumbnail_path") ?? "").trim() || null; // NEW
+    const mosqueMode = String(formData.get("mosque_mode") ?? "existing").trim(); // NEW
 
-    if (!title) return; // NEW: minimal validation
+    if (!title) return;
 
     let mosqueId: string | null = null;
 
@@ -49,7 +45,6 @@ export default async function AdminNewProgramPage() {
       const mosqueAddress = String(formData.get("mosque_address") ?? "").trim() || null; // NEW
       const mosquePicturePath = String(formData.get("mosque_picture_path") ?? "").trim() || null; // NEW
 
-      // NEW: only name is required
       if (!mosqueName) return;
 
       const { data: createdMosque, error: createMosqueErr } = await supabaseServer
@@ -71,28 +66,27 @@ export default async function AdminNewProgramPage() {
     const { error: insertErr } = await supabaseServer.from("programs").insert({
       title,
       description: description || null,
-      lead_teacher_id: leadTeacherId || null,
+      lead_teacher_id: actionUser.id, // NEW: teacher is lead teacher
       mosque_id: mosqueId,
-      price_monthly: Number.isFinite(priceMonthly) ? priceMonthly : 0, // NEW
-      thumbnail_path: thumbnailPath, // NEW
+      price_monthly: Number.isFinite(priceMonthly) ? priceMonthly : 0,
+      thumbnail_path: thumbnailPath,
     });
 
     if (insertErr) throw insertErr;
 
-    redirect("/admin/programs"); // NEW: go back to list
+    redirect("/teacher"); // NEW: back to teacher dashboard
   }
 
   return (
     <main className="px-6 py-10">
       <div className="mx-auto max-w-3xl">
-        <PageTopActions showSignOut={true} backHref="/admin/programs" />
+        <PageTopActions showSignOut={true} backHref="/teacher" />
 
         <h1 className="text-3xl font-semibold text-zinc-900">
           <span className="bg-gradient-to-r from-[#ff2d55] via-[#ff3b30] to-[#ff2d55] bg-clip-text text-transparent">
-            Add program
+            Launch program
           </span>
         </h1>
-        <p className="mt-2 text-sm text-zinc-600">Create a new program and assign a teacher + mosque.</p>
 
         <form action={createProgramAction} className="mt-8 space-y-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div>
@@ -113,51 +107,24 @@ export default async function AdminNewProgramPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="text-sm font-semibold text-zinc-900">Price per month</label>
-              <input
-                name="price_monthly"
-                type="number"
-                step="0.01"
-                defaultValue="100.00"
-                className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm"
-              />
+              <input name="price_monthly" type="number" step="0.01" defaultValue="100.00" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm" />
             </div>
 
             <div>
               <label className="text-sm font-semibold text-zinc-900">Thumbnail path</label>
-              <input
-                name="thumbnail_path"
-                className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm"
-                placeholder="program-thumbnails/quran.jpg"
-              />
+              <input name="thumbnail_path" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm" placeholder="program-thumbnails/quran.jpg" />
               <div className="mt-1 text-xs text-zinc-500">Bucket: public-media</div>
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-semibold text-zinc-900">Lead teacher</label>
-            <select name="lead_teacher_id" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm">
-              <option value="">Select teacher</option>
-              {teachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.full_name?.trim() || t.id}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* NEW: mosque selection mode */}
           <div>
             <label className="text-sm font-semibold text-zinc-900">Mosque</label>
             <select name="mosque_mode" defaultValue="existing" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm">
               <option value="existing">Choose existing mosque</option>
               <option value="new">Add new mosque</option>
             </select>
-            <div className="mt-1 text-xs text-zinc-500">
-              If you choose “Add new mosque”, fill the fields below. Only name is required.
-            </div>
           </div>
 
-          {/* Existing mosque */}
           <div>
             <label className="text-sm font-semibold text-zinc-900">Existing mosque</label>
             <select name="mosque_id" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm">
@@ -170,7 +137,6 @@ export default async function AdminNewProgramPage() {
             </select>
           </div>
 
-          {/* New mosque fields */}
           <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
             <div className="text-sm font-semibold text-zinc-900">New mosque (only if “Add new mosque” selected)</div>
 
@@ -182,29 +148,18 @@ export default async function AdminNewProgramPage() {
 
               <div>
                 <label className="text-sm font-medium text-zinc-900">Picture path</label>
-                <input
-                  name="mosque_picture_path"
-                  className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm"
-                  placeholder="mosque-pictures/rahma.jpeg"
-                />
+                <input name="mosque_picture_path" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm" placeholder="mosque-pictures/rahma.jpeg" />
                 <div className="mt-1 text-xs text-zinc-500">Bucket: public-media</div>
               </div>
             </div>
 
             <div className="mt-4">
               <label className="text-sm font-medium text-zinc-900">Address</label>
-              <input
-                name="mosque_address"
-                defaultValue="6104 172 St NW, Edmonton, AB T6M 1E3"
-                className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm"
-              />
+              <input name="mosque_address" defaultValue="6104 172 St NW, Edmonton, AB T6M 1E3" className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm" />
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-gradient-to-r from-[#ff2d55] via-[#ff3b30] to-[#ff2d55] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-95"
-          >
+          <button type="submit" className="w-full rounded-xl bg-gradient-to-r from-[#ff2d55] via-[#ff3b30] to-[#ff2d55] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-95">
             Create program
           </button>
         </form>

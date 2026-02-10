@@ -1,45 +1,43 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getCurrentRole } from "@/lib/auth/getCurrentRole";
+import PageTopActions from "@/components/layout/PageTopActions";
 
-export default async function AdminHomePage() {
-  const role = await getCurrentRole(); // Server-side role check (RLS-safe)
-  if (role !== "admin") redirect("/dashboard"); // Important: only admins can view
-
+export default function AdminHomePage() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold text-black">Admin</h1>
-      <p className="mt-1 text-sm text-black/70">
-        Manage users, roles, and programs.
-      </p>
+    <main className="px-6 py-10">
+      <div className="mx-auto max-w-4xl">
+        <PageTopActions showSignOut={true} />
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <Link
-          href="/admin/users"
-          className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="text-sm font-semibold text-black">Users</div>
-          <div className="mt-1 text-sm text-black/70">
-            View all users and change roles.
-          </div>
-          <div className="mt-4 inline-flex rounded-xl bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800">
-            Open
-          </div>
-        </Link>
+        <h1 className="text-3xl font-semibold text-zinc-900">
+          <span className="bg-gradient-to-r from-[#ff2d55] via-[#ff3b30] to-[#ff2d55] bg-clip-text text-transparent">
+            Admin Dashboard
+          </span>
+        </h1>
+        <p className="mt-2 text-sm text-zinc-600">Manage users and programs.</p>
 
-        <Link
-          href="/admin/programs"
-          className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="text-sm font-semibold text-black">Programs</div>
-          <div className="mt-1 text-sm text-black/70">
-            Add and manage Quran memorization programs.
-          </div>
-          <div className="mt-4 inline-flex rounded-xl bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800">
-            Open
-          </div>
-        </Link>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <Link
+            href="/admin/users"
+            className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm hover:bg-zinc-50"
+          >
+            <div className="text-lg font-semibold text-zinc-900">Manage users</div>
+            <div className="mt-1 text-sm text-zinc-600">View roles, update roles, remove users.</div>
+          </Link>
+
+          <Link
+            href="/admin/programs/new"
+            className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm hover:bg-zinc-50"
+          >
+            <div className="text-lg font-semibold text-zinc-900">Launch new program</div>
+            <div className="mt-1 text-sm text-zinc-600">Create a program and assign a teacher + mosque.</div>
+          </Link>
+        </div>
+
+        <div className="mt-6">
+          <Link href="/admin/programs" className="text-sm font-medium text-[#ff3b30] hover:underline">
+            View all programs →
+          </Link>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

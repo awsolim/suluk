@@ -14,7 +14,8 @@ export default function CardAction({ children, href }: Props) {
   return (
     <Link
       href={href}
-      className="inline-flex bg-gray-800 items-center rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-200 transition hover:bg-gray-100"
+      className="inline-flex items-center rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-200 transition hover:bg-gray-100"
+      style={{ backgroundColor: "var(--primary-color)" }}
     >
       {children}
     </Link>

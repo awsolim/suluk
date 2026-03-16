@@ -8,6 +8,7 @@ import {
   getProgramByIdIncludingInactiveForMosque,
   getTeachersForMosque,
 } from "@/lib/supabase/queries";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 type EditProgramPageProps = {
   params: Promise<{
@@ -143,12 +144,13 @@ export default async function EditProgramPage({
           >
             ←
           </Link>
-          <button
+          {/* <button
             type="submit"
             className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
           >
             Save Changes
-          </button>
+          </button> */}
+          <SubmitButton pendingText="Saving ...">Save Changes</SubmitButton>
 
           
         </div>

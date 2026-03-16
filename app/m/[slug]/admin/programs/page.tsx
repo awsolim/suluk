@@ -65,70 +65,61 @@ export default async function AdminProgramsPage({
         </div>
       ) : (
         <div className="space-y-3">
-          {programs.map((program) => (
-            <article
-              key={program.id}
-              className="rounded-2xl border border-gray-200 p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold">{program.title}</h2>
+          <div className="space-y-3">
+  {programs.map((program) => (
+    <Link
+      key={program.id}
+      href={`/m/${slug}/admin/programs/${program.id}`}
+      className="block cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+    >
+      <article className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold">{program.title}</h2>
 
-                  {program.description ? (
-                    <p className="mt-2 text-sm leading-6 text-gray-600">
-                      {program.description}
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-sm text-gray-500">
-                      No description yet.
-                    </p>
-                  )}
+          {program.description ? (
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              {program.description}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500">
+              No description yet.
+            </p>
+          )}
 
-                  <div className="mt-3 space-y-1 text-sm text-gray-600">
-                    <p>
-                      Teacher:{" "}
-                      <span className="font-medium text-black">
-                        {program.teacher_name || "Unassigned"}
-                      </span>
-                    </p>
+          <div className="mt-3 space-y-1 text-sm text-gray-600">
+            <p>
+              Teacher:{" "}
+              <span className="font-medium text-black">
+                {program.teacher_name || "Unassigned"}
+              </span>
+            </p>
 
-                    <p>
-                      Students:{" "}
-                      <span className="font-medium text-black">
-                        {program.enrolled_student_count}
-                      </span>
-                    </p>
-                  </div>
-                </div>
+            <p>
+              Students:{" "}
+              <span className="font-medium text-black">
+                {program.enrolled_student_count}
+              </span>
+            </p>
+          </div>
+        </div>
 
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                    program.is_active
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {program.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
+        <div className="ml-3 flex items-start gap-3">
+          <span
+            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+              program.is_active
+                ? "bg-green-100 text-green-700"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {program.is_active ? "Active" : "Inactive"}
+          </span>
 
-              <div className="mt-4 flex flex-wrap gap-4">
-                <CardAction href={`/m/${slug}/admin/programs/${program.id}`}>
-                  View Students
-                </CardAction>
-
-                <CardAction
-                  href={`/m/${slug}/programs/${program.id}?from=admin`} // Preserve admin context when jumping into the shared public program page.
-                >
-                  View Public Page
-                </CardAction>
-
-                <CardAction href={`/m/${slug}/admin/programs/${program.id}/edit`}>
-                  Edit 
-                </CardAction>
-              </div>
-            </article>
-          ))}
+          <span className="text-lg text-gray-400">›</span>
+        </div>
+      </article>
+    </Link>
+  ))}
+</div>
         </div>
       )}
     </section>

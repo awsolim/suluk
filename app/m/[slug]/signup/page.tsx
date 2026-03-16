@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signup } from "@/app/actions/auth";
 import { getMosqueBySlug } from "@/lib/tenants";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 type TenantSignupPageProps = {
   params: Promise<{
@@ -67,7 +68,21 @@ export default async function TenantSignupPage({
               className="w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
             />
           </div>
-
+          <div>
+  <label
+    htmlFor="phone_number"
+    className="mb-1.5 block text-sm font-medium"
+  >
+    Phone number
+  </label>
+  <input
+    id="phone_number"
+    name="phone_number"
+    type="tel"
+    required
+    className="w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
+  />
+</div>
           <div>
             <label
               htmlFor="password"
@@ -84,12 +99,13 @@ export default async function TenantSignupPage({
             />
           </div>
 
-          <button
+          {/* <button
             type="submit"
             className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
           >
             Sign up
-          </button>
+          </button> */}
+          <SubmitButton pendingText="Signing Up...">Sign Up</SubmitButton>
         </form>
 
         <p className="mt-5 text-sm text-gray-600">

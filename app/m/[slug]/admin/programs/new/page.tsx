@@ -7,6 +7,7 @@ import {
   getMosqueMembershipForUser,
   getTeachersForMosque,
 } from "@/lib/supabase/queries";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 type NewProgramPageProps = {
   params: Promise<{
@@ -126,12 +127,13 @@ export default async function NewProgramPage({
           >
             ←
           </Link>
-          <button
+          {/* <button
             type="submit"
             className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
           >
             Create Program
-          </button>
+          </button> */}
+          <SubmitButton pendingText="Creating..."> Create Program</SubmitButton>
 
           
         </div>

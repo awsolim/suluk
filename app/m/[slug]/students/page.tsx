@@ -6,7 +6,6 @@ import {
   getMosqueMembershipForUser,
   getEnrollmentsForTeacherProgramsInMosque,
 } from "@/lib/supabase/queries";
-import CardAction from "@/components/ui/CardAction";
 
 type TeacherStudentsPageProps = {
   params: Promise<{
@@ -17,32 +16,32 @@ type TeacherStudentsPageProps = {
 export default async function TeacherStudentsPage({
   params,
 }: TeacherStudentsPageProps) {
-  const { slug } = await params; // Read the tenant slug so the page stays mosque-scoped.
+  const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug); // Load the mosque for this tenant slug.
+  const mosque = await getMosqueBySlug(slug);
 
   if (!mosque) {
-    notFound(); // Show a 404 if the mosque slug is invalid.
+    notFound();
   }
 
-  const profile = await getProfileForCurrentUser(); // Load the signed-in profile for teacher authorization.
+  const profile = await getProfileForCurrentUser();
 
   if (!profile) {
-    redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/students`)}`); // Require login before allowing access to teacher student data.
+    redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/students`)}`);
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped role for teacher authorization.
+  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
 
   if (!membership || membership.role !== "teacher") {
-    notFound(); // Hide this teacher-only page from non-teachers.
+    notFound();
   }
 
   const enrollments = await getEnrollmentsForTeacherProgramsInMosque(
     profile.id,
     mosque.id
-  ); // Load all enrolled students across all programs taught by this teacher in this mosque.
+  );
 
-  const totalStudents = enrollments.length; // Count all enrolled student rows across this teacher's classes.
+  const totalStudents = enrollments.length;
 
   return (
     <section className="space-y-5">
@@ -65,13 +64,15 @@ export default async function TeacherStudentsPage({
             <p className="text-sm text-gray-500">Classes Covered</p>
             <p className="mt-1 text-2xl font-semibold">
               {new Set(
-                enrollments.map((enrollment) => {
-                  const program = Array.isArray(enrollment.programs)
-                    ? enrollment.programs[0]
-                    : enrollment.programs;
+                enrollments
+                  .map((enrollment) => {
+                    const program = Array.isArray(enrollment.programs)
+                      ? enrollment.programs[0]
+                      : enrollment.programs;
 
-                  return program?.id ?? "";
-                }).filter(Boolean)
+                    return program?.id ?? "";
+                  })
+                  .filter(Boolean)
               ).size}
             </p>
           </div>
@@ -102,32 +103,33 @@ export default async function TeacherStudentsPage({
                 month: "short",
                 day: "numeric",
               }
-            ); // Format the enrollment timestamp into a readable joined date.
+            );
 
             return (
-              <article
+              <Link
                 key={enrollment.id}
-                className="rounded-2xl border border-gray-200 p-4 shadow-sm"
+                href={`/m/${slug}/teacher/programs/${program?.id}`}
+                className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
               >
-                <h2 className="text-base font-semibold">
-                  {student?.full_name?.trim() ||
-                    `Student ${enrollment.student_profile_id.slice(0, 8)}`}
-                </h2>
+                <article className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold">
+                      {student?.full_name?.trim() ||
+                        `Student ${enrollment.student_profile_id.slice(0, 8)}`}
+                    </h2>
 
-                <p className="mt-2 text-sm text-gray-600">
-                  Class: {program?.title ?? "Unknown Program"}
-                </p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      Class: {program?.title ?? "Unknown Program"}
+                    </p>
 
-                <p className="mt-1 text-sm text-gray-500">
-                  Joined: {joinedDate}
-                </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Joined: {joinedDate}
+                    </p>
+                  </div>
 
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <CardAction href={`/m/${slug}/teacher/programs/${program?.id}`}>
-                    Open Class
-                  </CardAction>
-                </div>
-              </article>
+                  <span className="text-lg leading-none text-gray-400">›</span>
+                </article>
+              </Link>
             );
           })}
         </div>

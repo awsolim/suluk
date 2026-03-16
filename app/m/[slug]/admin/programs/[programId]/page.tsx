@@ -8,7 +8,6 @@ import {
   getEnrollmentsForProgramInAdminView,
   getProfileById,
 } from "@/lib/supabase/queries";
-import CardAction from "@/components/ui/CardAction";
 
 type AdminProgramDetailPageProps = {
   params: Promise<{
@@ -65,66 +64,67 @@ export default async function AdminProgramDetailPage({
 
   return (
     <section className="space-y-5">
-      <div className="space-y-1">
-        <p className="text-sm text-gray-500">{mosque.name}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{program.title}</h1>
-        <p className="text-sm text-gray-600">
-          Admin view for this program.
-        </p>
+      <div className="flex items-start gap-3">
+        <Link
+          href={`/m/${slug}/admin/programs`}
+          className="mt-1 text-lg font-medium text-gray-500"
+          aria-label="Back to Manage Programs"
+        >
+          ←
+        </Link>
+
+        <div>
+          <p className="text-sm text-gray-500">{mosque.name}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{program.title}</h1>
+          <p className="text-sm text-gray-600">Admin view for this program.</p>
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold">Program Details</h2>
+      <Link
+        href={`/m/${slug}/admin/programs/${program.id}/edit`}
+        className="block cursor-pointer rounded-2xl border border-gray-200 p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+      >
+        <article>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">Program Details</h2>
 
-            {program.description ? (
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                {program.description}
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-gray-500">
-                No description yet.
-              </p>
-            )}
+              {program.description ? (
+                <p className="mt-2 text-sm leading-6 text-gray-600">
+                  {program.description}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-gray-500">
+                  No description yet.
+                </p>
+              )}
 
-            <div className="mt-4 space-y-1 text-sm text-gray-600">
-              <p>
-                Assigned Teacher:{" "}
-                <span className="font-medium text-black">
-                  {teacherName || "Unassigned"}
-                </span>
-              </p>
+              <div className="mt-4 space-y-1 text-sm text-gray-600">
+                <p>
+                  Assigned Teacher:{" "}
+                  <span className="font-medium text-black">
+                    {teacherName || "Unassigned"}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="ml-3 flex items-start gap-3">
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                  program.is_active
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                {program.is_active ? "Active" : "Inactive"}
+              </span>
+
+              <span className="text-lg text-gray-400">›</span>
             </div>
           </div>
-
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-              program.is_active
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-100 text-gray-600"
-            }`}
-          >
-            {program.is_active ? "Active" : "Inactive"}
-          </span>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-3">
-            <CardAction href={`/m/${slug}/admin/programs`}>
-            ←
-          </CardAction>
-
-          <CardAction href={`/m/${slug}/admin/programs/${program.id}/edit`}>
-            Edit Program
-          </CardAction>
-
-          <CardAction href={`/m/${slug}/programs/${program.id}?from=admin`}>
-            View Public Page
-          </CardAction>
-
-          
-        </div>
-      </div>
+        </article>
+      </Link>
 
       <div className="space-y-3">
         <div>

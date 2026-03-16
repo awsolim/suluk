@@ -1,0 +1,296 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import {
+  getMosqueBySlug,
+  getProgramByIdForMosque,
+  getProfileForCurrentUser,
+  getEnrollmentForStudent,
+  getMosqueMembershipForUser,
+  getAnnouncementsForProgram,
+} from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/server";
+import {
+  buildCalendarDaysForCurrentMonth,
+  formatUpcomingClassLine,
+  formatWeekdayList,
+  formatTimeRange,
+  getUpcomingClassDates,
+  normalizeScheduleDays,
+  toDateKey,
+} from "@/lib/schedule";
+
+type StudentClassPageProps = {
+  params: Promise<{
+    slug: string;
+    programId: string;
+  }>;
+};
+
+const DEFAULT_AVATAR =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <rect width="200" height="200" rx="100" fill="#e5e7eb" />
+      <circle cx="100" cy="78" r="34" fill="#9ca3af" />
+      <path d="M45 165c10-30 36-46 55-46s45 16 55 46" fill="#9ca3af" />
+    </svg>
+  `);
+
+function formatAnnouncementDate(dateValue: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(dateValue));
+}
+
+export default async function StudentClassPage({
+  params,
+}: StudentClassPageProps) {
+  const { slug, programId } = await params;
+  const supabase = await createClient();
+
+  const mosque = await getMosqueBySlug(slug);
+
+  if (!mosque) {
+    notFound();
+  }
+
+  const profile = await getProfileForCurrentUser();
+
+  if (!profile) {
+    redirect(
+      `/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/classes/${programId}`)}`
+    );
+  }
+
+  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+
+  if (membership?.role === "teacher" || membership?.role === "mosque_admin") {
+    redirect(`/m/${slug}/classes`);
+  }
+
+  const program = await getProgramByIdForMosque(programId, mosque.id);
+
+  if (!program) {
+    notFound();
+  }
+
+  const enrollment = await getEnrollmentForStudent(program.id, profile.id);
+
+  if (!enrollment) {
+    redirect(`/m/${slug}/programs/${program.id}`);
+  }
+
+  const announcements = await getAnnouncementsForProgram(program.id);
+
+  const scheduleDays = normalizeScheduleDays(program.schedule_days);
+  const timeZone = program.schedule_timezone || "America/Edmonton";
+
+  const weeklyScheduleText =
+    scheduleDays.length > 0
+      ? `${formatWeekdayList(scheduleDays)} · ${formatTimeRange(
+          program.schedule_start_time,
+          program.schedule_end_time,
+          timeZone
+        )}`
+      : "Schedule not set yet";
+
+  const upcomingDates = getUpcomingClassDates(scheduleDays, 3, timeZone);
+  const highlightedDateKeys = new Set(
+    upcomingDates.slice(0, 2).map((date) => toDateKey(date))
+  );
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayKey = toDateKey(today);
+
+  const { monthLabel, cells } = buildCalendarDaysForCurrentMonth(timeZone);
+
+  return (
+    <main className="mx-auto max-w-md space-y-4 px-4 py-6">
+      <Link
+        href={`/m/${slug}/classes`}
+        className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-white"
+        style={{ backgroundColor: mosque.primary_color || "#111827" }}
+      >
+        ← Back to Classes
+      </Link>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <p className="text-sm text-gray-500">{mosque.name}</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          {program.title}
+        </h1>
+      </div>
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <h2 className="text-base font-semibold">Schedule</h2>
+
+        <p className="mt-3 truncate text-sm text-gray-600">
+          Weekly: {weeklyScheduleText}
+        </p>
+
+        {program.schedule_notes ? (
+          <p className="mt-2 text-sm text-gray-600">{program.schedule_notes}</p>
+        ) : null}
+
+        <div className="mt-4 rounded-2xl border border-gray-200 p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-900">{monthLabel}</h3>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                <span>Today</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                <span>Upcoming class</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500">
+            {["S", "M", "T", "W", "T", "F", "S"].map((label, index) => (
+              <div key={`${label}-${index}`} className="py-1">
+                {label}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-1 grid grid-cols-7 gap-1">
+            {cells.map((cell, index) => {
+              if (cell.type === "empty") {
+                return (
+                  <div
+                    key={`empty-${index}`}
+                    className="aspect-square rounded-xl"
+                  />
+                );
+              }
+
+              const cellDateKey = toDateKey(cell.date);
+              const isToday = cellDateKey === todayKey;
+              const isUpcomingClass = highlightedDateKeys.has(cellDateKey);
+              const isTodayAndUpcoming = isToday && isUpcomingClass;
+
+              let cellClassName =
+                "flex aspect-square items-center justify-center rounded-xl text-sm font-medium";
+
+              let cellStyle: React.CSSProperties | undefined;
+
+              if (isTodayAndUpcoming) {
+                cellClassName += " text-white";
+                cellStyle = {
+                  background:
+                    "linear-gradient(135deg, #facc15 0%, #facc15 50%, #22c55e 50%, #22c55e 100%)",
+                };
+              } else if (isUpcomingClass) {
+                cellClassName += " bg-green-500 text-white";
+              } else if (isToday) {
+                cellClassName += " text-gray-900";
+                cellStyle = {
+                  backgroundColor: "#facc15",
+                };
+              } else {
+                cellClassName += " text-gray-700";
+              }
+
+              return (
+                <div key={cellDateKey} className={cellClassName} style={cellStyle}>
+                  {cell.date.getDate()}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {upcomingDates.length > 0 ? (
+          <div className="mt-4 space-y-2">
+            <h3 className="text-sm font-medium text-gray-900">
+              Upcoming Classes
+            </h3>
+
+            <div className="space-y-2">
+              {upcomingDates.map((date) => (
+                <div
+                  key={toDateKey(date)}
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                >
+                  {formatUpcomingClassLine(
+                    date,
+                    program.schedule_start_time,
+                    program.schedule_end_time,
+                    timeZone
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">
+            Schedule information has not been fully set yet.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <h2 className="text-base font-semibold">Announcements</h2>
+
+        {announcements.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-600">
+            No announcements have been posted for this class yet.
+          </p>
+        ) : (
+          <div className="mt-4 max-h-96 space-y-3 overflow-y-auto pr-1">
+            {announcements.map((announcement) => {
+              const author = Array.isArray(announcement.profiles)
+                ? announcement.profiles[0]
+                : announcement.profiles;
+
+              const authorAvatarSrc = author?.avatar_url
+                ? supabase.storage
+                    .from("media")
+                    .getPublicUrl(author.avatar_url).data.publicUrl
+                : DEFAULT_AVATAR;
+
+              return (
+                <article
+                  key={announcement.id}
+                  className="rounded-2xl border border-gray-200 p-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
+                      <img
+                        src={authorAvatarSrc}
+                        alt={author?.full_name || "Teacher"}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {author?.full_name || "Teacher"}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatAnnouncementDate(announcement.created_at)}
+                        </p>
+                      </div>
+
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                        {announcement.message}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}

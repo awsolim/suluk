@@ -2,16 +2,19 @@ import { notFound } from "next/navigation";
 import {
   getMosqueBySlug,
   getProgramsByMosqueId,
+  getProfileForCurrentUser,
+  getMosqueMembershipForUser,
+  getEnrollmentsForStudentInMosque,
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
-import CardAction from "@/components/ui/CardAction";
+import Link from "next/link";
+
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-// Added: fallback thumbnail image so the card still looks complete
-// when a program does not have a thumbnail path saved in the database.
+// Added: fallback thumbnail image so cards still look complete when a program has no uploaded cover.
 const DEFAULT_PROGRAM_THUMBNAIL =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -32,8 +35,7 @@ const DEFAULT_PROGRAM_THUMBNAIL =
     </svg>
   `);
 
-// Added: fallback avatar image so the teacher avatar circle still renders
-// even when no avatar path exists in the database.
+// Added: fallback avatar image so teacher profile circles still render even without an uploaded avatar.
 const DEFAULT_AVATAR =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -47,33 +49,70 @@ const DEFAULT_AVATAR =
 export default async function ProgramsPage({ params }: PageProps) {
   const { slug } = await params;
 
-  // Added: create a server-side Supabase client so we can convert
-  // storage paths like "thumbnails/thumbnail.jfif" into real public URLs.
+  // Added: create a server-side Supabase client so storage paths can be turned into public URLs.
   const supabase = await createClient();
+  const {
+  data: { user },
+} = await supabase.auth.getUser(); // Check whether the visitor is logged in.
 
-  // Load the current mosque from the tenant slug
+  // Load the current mosque from the tenant slug.
   const mosque = await getMosqueBySlug(slug);
 
-  // Show 404 if the mosque slug is invalid
+  // Show 404 if the mosque slug is invalid.
   if (!mosque) {
     notFound();
   }
+  const primaryColor = mosque.primary_color || "#111827";
 
-  // Load only programs that belong to this mosque
-  // Important: this helper should return:
-  // - thumbnail_url
-  // - teacher_name
-  // - teacher_avatar_url
+  // Load only programs that belong to this mosque.
+  
   const programs = await getProgramsByMosqueId(mosque.id);
 
-  return (
-    <main className="mx-auto max-w-md px-4 py-6">
-      <div className="mb-6 space-y-1">
-        <p className="text-sm text-gray-500">{mosque.name}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Programs</h1>
-      </div>
+  // Added: load the signed-in user's profile so we can determine enrolled state for students.
+  const profile = await getProfileForCurrentUser();
 
-      {programs.length === 0 ? (
+  // Added: load the user's mosque-scoped membership to distinguish students from teachers/admins.
+  const membership = profile
+    ? await getMosqueMembershipForUser(profile.id, mosque.id)
+    : null;
+
+  const isTeacher = membership?.role === "teacher"; // Added: teachers should not get student enrolled-state treatment.
+  const isMosqueAdmin = membership?.role === "mosque_admin"; // Added: admins should not get student enrolled-state treatment.
+  const isStudent = Boolean(profile) && !isTeacher && !isMosqueAdmin; // Added: only non-staff signed-in users are treated as students here.
+
+  // Added: load the student's enrollments in this mosque so the browse cards can mark enrolled programs.
+  const enrollments = isStudent
+    ? await getEnrollmentsForStudentInMosque(profile.id, mosque.id)
+    : [];
+
+  // Added: convert the student's enrollment rows into a fast lookup set by program id.
+  const enrolledProgramIds = new Set(
+    enrollments.map((enrollment) => enrollment.program_id)
+  );
+
+  return (
+  <main className="mx-auto max-w-md px-4 py-6">
+    <div className="mb-6 space-y-1">
+      <p className="text-sm text-gray-500">{mosque.name}</p>
+      <h1 className="text-2xl font-semibold tracking-tight">Programs</h1>
+    </div>
+
+    {!user ? (
+      <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <p className="text-sm text-gray-700">
+          You are browsing programs as a guest.
+        </p>
+        <Link
+          href={`/m/${slug}/login`}
+          className="mt-3 block w-full rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+          style={{backgroundColor:primaryColor}}
+        >
+          Log In to Enroll
+        </Link>
+      </div>
+    ) : null}
+
+    {programs.length === 0 ? (
         <div className="rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-600">
             No programs are available right now.
@@ -82,68 +121,79 @@ export default async function ProgramsPage({ params }: PageProps) {
       ) : (
         <div className="space-y-4">
           {programs.map((program) => {
-            // Added: convert the saved thumbnail storage path into a real public URL.
-            // Example DB value: "thumbnails/thumbnail.jfif"
+            // Added: choose the saved thumbnail if present, otherwise use the default placeholder.
             const thumbnailSrc = program.thumbnail_url
               ? supabase.storage.from("media").getPublicUrl(program.thumbnail_url)
                   .data.publicUrl
               : DEFAULT_PROGRAM_THUMBNAIL;
 
-            // Added: convert the saved avatar storage path into a real public URL.
-            // Example DB value: "avatars/sheikh.jfif"
+            // Added: choose the saved teacher avatar if present, otherwise use the default avatar.
             const teacherAvatarSrc = program.teacher_avatar_url
               ? supabase.storage
                   .from("media")
                   .getPublicUrl(program.teacher_avatar_url).data.publicUrl
               : DEFAULT_AVATAR;
 
-            // Added: use a fallback teacher label if no teacher is assigned.
+            // Added: use the teacher's real name if available, otherwise show a simple fallback.
             const teacherName = program.teacher_name || "Teacher not assigned";
 
+            // Added: check whether this specific program is already enrolled by the current student.
+            const isEnrolled = enrolledProgramIds.has(program.id);
+
             return (
-              <article
-                key={program.id}
-                className="overflow-hidden rounded-xl border border-gray-200 bg-white"
-              >
-                {/* Added: thumbnail area at the top of the card. */}
-                <div className="relative">
-                  <img
-                    src={thumbnailSrc}
-                    alt={`${program.title} thumbnail`}
-                    className="h-40 w-full object-cover"
-                  />
+  <Link
+  key={program.id}
+  href={`/m/${slug}/programs/${program.id}`}
+  className="block cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+>
+  {/* Thumbnail section at the top of the card */}
+  <div className="relative">
+    <img
+      src={thumbnailSrc}
+      alt={`${program.title} thumbnail`}
+      className={`h-40 w-full object-cover transition ${
+        isEnrolled ? "brightness-50 blur-[1.5px]" : ""
+      }`}
+    />
 
-                  {/* Added: overlapping circular teacher avatar. */}
-                  <div className="absolute -bottom-6 left-4 h-12 w-12 overflow-hidden rounded-full border-2 border-white bg-gray-100 shadow-sm">
-                    <img
-                      src={teacherAvatarSrc}
-                      alt={teacherName}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                </div>
+    {/* Enrolled banner */}
+    {isEnrolled ? (
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <span className="-rotate-12 text-3xl font-extrabold tracking-wide text-green-500 drop-shadow-sm">
+          ENROLLED
+        </span>
+      </div>
+    ) : null}
 
-                {/* Added: extra top padding so content clears the overlapping avatar. */}
-                <div className="p-4 pt-8">
-                  {/* Added: teacher name under the media area. */}
-                  <p className="mb-2 text-sm text-gray-500">{teacherName}</p>
+    {/* Teacher avatar */}
+    <div className="absolute -bottom-6 left-4 h-12 w-12 overflow-hidden rounded-full border-2 border-white bg-gray-100 shadow-sm">
+      <img
+        src={teacherAvatarSrc}
+        alt={teacherName}
+        className="h-full w-full object-cover"
+      />
+    </div>
+  </div>
 
-                  <h2 className="text-base font-semibold">{program.title}</h2>
+  {/* Card content */}
+  <article className="flex items-start justify-between p-4 pt-8">
+    <div className="min-w-0">
+      <p className="mb-2 text-sm text-gray-500">{teacherName}</p>
 
-                  {program.description ? (
-                    <p className="mt-2 text-sm leading-6 text-gray-600">
-                      {program.description}
-                    </p>
-                  ) : null}
+      <h2 className="text-base font-semibold">{program.title}</h2>
 
-                  <div className="mt-4">
-                    <CardAction href={`/m/${slug}/programs/${program.id}`}>
-                      View Details
-                    </CardAction>
-                  </div>
-                </div>
-              </article>
-            );
+      {program.description ? (
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          {program.description}
+        </p>
+      ) : null}
+    </div>
+
+    {/* Chevron indicator */}
+    <span className="ml-3 text-lg text-gray-400">›</span>
+  </article>
+</Link>
+);
           })}
         </div>
       )}

@@ -1,9 +1,9 @@
-import Link from "next/link";
 import {
   getMosqueBySlug,
   getProfileForCurrentUser,
   getMosqueMembershipForUser,
 } from "@/lib/supabase/queries";
+import BottomNavClient from "@/components/BottomNavClient";
 
 type Props = {
   slug: string;
@@ -30,62 +30,53 @@ export default async function BottomNav({ slug }: Props) {
   const secondLink = isMosqueAdmin
     ? {
         href: `/m/${slug}/admin/programs`, // Admins should jump directly into managing all mosque programs.
-        icon: "🗂️",
-        label: "All Programs",
+        icon: "programs" as const,
+        label: "Programs",
       }
     : isTeacher
     ? {
         href: `/m/${slug}/classes`, // Teachers use Classes as their teaching list page.
-        icon: "🎓",
-        label: "My Classes",
+        icon: "classes" as const,
+        label: "Classes",
       }
     : {
         href: `/m/${slug}/classes`, // Students use Classes for their enrolled classes.
-        icon: "🎓",
+        icon: "classes" as const,
         label: "Classes",
       };
 
   const thirdLink = isMosqueAdmin
     ? {
         href: `/m/${slug}/admin/programs/new`, // Admins should be able to create a new program directly from the nav.
-        icon: "➕",
-        label: "New Program",
+        icon: "new-program" as const,
+        label: "New",
       }
     : isTeacher
     ? {
         href: `/m/${slug}/students`, // Teachers should see a cross-class student list for their assigned programs.
-        icon: "🧑‍🎓",
+        icon: "students" as const,
         label: "Students",
       }
     : {
         href: `/m/${slug}/programs`, // Students browse the public program catalog.
-        icon: "📚",
+        icon: "programs" as const,
         label: "Programs",
       };
 
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 border-t bg-white">
-      <div className="mx-auto flex max-w-md justify-between px-6 py-3 text-sm">
-        <Link href={`/m/${slug}/dashboard`} className="flex flex-col items-center">
-          <span>🏠</span>
-          <span>Home</span>
-        </Link>
+  const items = [
+    {
+      href: `/m/${slug}/dashboard`,
+      icon: "home" as const,
+      label: "Home",
+    },
+    secondLink,
+    thirdLink,
+    {
+      href: `/m/${slug}/settings`,
+      icon: "settings" as const,
+      label: "Settings",
+    },
+  ];
 
-        <Link href={secondLink.href} className="flex flex-col items-center">
-          <span>{secondLink.icon}</span>
-          <span>{secondLink.label}</span>
-        </Link>
-
-        <Link href={thirdLink.href} className="flex flex-col items-center">
-          <span>{thirdLink.icon}</span>
-          <span>{thirdLink.label}</span>
-        </Link>
-
-        <Link href={`/m/${slug}/settings`} className="flex flex-col items-center">
-          <span>⚙️</span>
-          <span>Settings</span>
-        </Link>
-      </div>
-    </nav>
-  );
+  return <BottomNavClient items={items} />;
 }

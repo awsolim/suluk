@@ -6,6 +6,8 @@ import {
   getProfileForCurrentUser,
   getMosqueMembershipForUser,
 } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/server";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 type SettingsPageProps = {
   params: Promise<{
@@ -13,33 +15,50 @@ type SettingsPageProps = {
   }>;
 };
 
-export default async function SettingsPage({ params }: SettingsPageProps) {
-  const { slug } = await params; // Read the tenant slug from the route so this page stays mosque-aware.
+const DEFAULT_AVATAR =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <rect width="200" height="200" rx="100" fill="#e5e7eb" />
+      <circle cx="100" cy="78" r="34" fill="#9ca3af" />
+      <path d="M45 165c10-30 36-46 55-46s45 16 55 46" fill="#9ca3af" />
+    </svg>
+  `);
 
-  const mosque = await getMosqueBySlug(slug); // Load the mosque for this tenant.
+export default async function SettingsPage({ params }: SettingsPageProps) {
+  const { slug } = await params;
+
+  const mosque = await getMosqueBySlug(slug);
 
   if (!mosque) {
     notFound();
   }
 
-  const profile = await getProfileForCurrentUser(); // Load the current signed-in profile so settings can show account info.
+  const profile = await getProfileForCurrentUser();
 
   if (!profile) {
     redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/settings`)}`);
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped role for role-aware account display.
+  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const primaryColor = mosque.primary_color || "#111827";
 
-  const isMosqueAdmin = membership?.role === "mosque_admin"; // Check whether the user is a mosque admin here.
-  const isTeacher = membership?.role === "teacher"; // Check whether the user is a teacher here.
+  const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isTeacher = membership?.role === "teacher";
 
   const accountRoleLabel = isMosqueAdmin
     ? "Mosque Admin Account"
     : isTeacher
     ? "Teacher Account"
-    : "Student Account"; // Show the highest relevant mosque-scoped role label on the settings profile card.
+    : "Student Account";
 
-  const displayName = profile.full_name?.trim() || "User"; // Fall back to a simple generic label if the profile name is empty.
+  const displayName = profile.full_name?.trim() || "User";
+
+  const supabase = await createClient();
+
+  const avatarSrc = profile.avatar_url
+    ? supabase.storage.from("media").getPublicUrl(profile.avatar_url).data.publicUrl
+    : DEFAULT_AVATAR;
 
   return (
     <section className="space-y-5">
@@ -51,18 +70,32 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-3xl">
-            👤
+      <Link
+        href={`/m/${slug}/settings/profile`}
+        className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+      >
+        <article className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="h-16 w-16 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
+              <img
+                src={avatarSrc}
+                alt={displayName}
+                className="h-full w-full object-cover"
+              />
+            </div>
+
+            <div className="min-w-0">
+              <h2 className="truncate text-xl font-semibold">{displayName}</h2>
+              <p className="mt-1 text-sm text-gray-600">{accountRoleLabel}</p>
+              <p className="mt-2 text-sm font-medium text-gray-500">
+                Edit Profile
+              </p>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <h2 className="truncate text-xl font-semibold">{displayName}</h2>
-            <p className="mt-1 text-sm text-gray-600">{accountRoleLabel}</p>
-          </div>
-        </div>
-      </div>
+          <span className="text-lg leading-none text-gray-400">›</span>
+        </article>
+      </Link>
 
       {isMosqueAdmin ? (
         <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
@@ -74,7 +107,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           <div className="mt-4">
             <Link
               href={`/m/${slug}/admin/programs`}
-              className="block rounded-xl bg-black px-4 py-3 text-center text-sm font-medium text-white"
+              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+              style={{ backgroundColor: primaryColor }}
             >
               Manage Programs
             </Link>
@@ -84,14 +118,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
 
       <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
         <form action={logout}>
-          <input type="hidden" name="slug" value={slug} />{/* Pass the tenant slug to logout so it redirects to the correct tenant route. */}
+          <input type="hidden" name="slug" value={slug} />
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
-          >
-            Log out
-          </button>
+          <SubmitButton pendingText="Logging out...">Log Out</SubmitButton>
         </form>
       </div>
     </section>

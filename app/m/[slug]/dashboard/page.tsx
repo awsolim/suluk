@@ -7,50 +7,98 @@ import {
   getMosqueMembershipForUser,
   getTeacherDashboardStats,
   getAdminDashboardStats,
+  getLatestAnnouncementsForPrograms,
 } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/server";
+import StudentEnrollmentCard from "@/components/dashboard/StudentEnrollmentCard";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
+const DEFAULT_AVATAR =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <rect width="200" height="200" rx="100" fill="#e5e7eb" />
+      <circle cx="100" cy="78" r="34" fill="#9ca3af" />
+      <path d="M45 165c10-30 36-46 55-46s45 16 55 46" fill="#9ca3af" />
+    </svg>
+  `);
+
 export default async function DashboardPage({ params }: PageProps) {
   const { slug } = await params;
 
-  // Load the tenant mosque for this dashboard route.
   const mosque = await getMosqueBySlug(slug);
+  const primaryColor = "var(--primary-color)";
+  const secondaryColor = "var(--secondary-color)";
 
-  // Show 404 if the slug does not match a real mosque.
   if (!mosque) {
     notFound();
   }
 
-  // Load the current signed-in profile.
   const profile = await getProfileForCurrentUser();
 
-  // Redirect logged-out users to the tenant login page.
   if (!profile) {
     redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/dashboard`)}`);
   }
 
-  // Load the user's mosque-scoped membership so dashboard content can be role-aware.
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
 
-  const isMosqueAdmin = membership?.role === "mosque_admin"; // Check whether this user is a mosque admin in the current mosque.
-  const isTeacher = membership?.role === "teacher"; // Check whether this user is a teacher in the current mosque.
-  const isStudentOnly = !isMosqueAdmin && !isTeacher; // Only pure student users should see enrollment-based dashboard content.
+  const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isTeacher = membership?.role === "teacher";
+  const isStudentOnly = !isMosqueAdmin && !isTeacher;
 
-  // Load student enrollments only for student-only users, since teachers/admins should not enroll in classes.
   const enrollments = isStudentOnly
     ? await getEnrollmentsForStudentInMosque(profile.id, mosque.id)
     : [];
 
   const teacherStats = isTeacher
     ? await getTeacherDashboardStats(profile.id, mosque.id)
-    : null; // Load teacher metrics only for teacher accounts.
+    : null;
 
   const adminStats = isMosqueAdmin
     ? await getAdminDashboardStats(mosque.id)
-    : null; // Load admin metrics only for mosque admins.
+    : null;
+
+  const enrolledProgramIds = enrollments
+    .map((enrollment) => {
+      const program = Array.isArray(enrollment.programs)
+        ? enrollment.programs[0]
+        : enrollment.programs;
+
+      return program?.id ?? null;
+    })
+    .filter((programId): programId is string => Boolean(programId));
+
+  const latestAnnouncements = isStudentOnly
+    ? await getLatestAnnouncementsForPrograms(enrolledProgramIds)
+    : [];
+
+  const supabase = await createClient();
+
+  const latestAnnouncementByProgramId = new Map(
+    latestAnnouncements.map((announcement) => {
+      const author = Array.isArray(announcement.profiles)
+        ? announcement.profiles[0]
+        : announcement.profiles;
+
+      const authorAvatarSrc = author?.avatar_url
+        ? supabase.storage.from("media").getPublicUrl(author.avatar_url).data.publicUrl
+        : DEFAULT_AVATAR;
+
+      return [
+        announcement.program_id,
+        {
+          id: announcement.id,
+          message: announcement.message,
+          created_at: announcement.created_at,
+          author_name: author?.full_name ?? null,
+          author_avatar_src: authorAvatarSrc,
+        },
+      ];
+    })
+  );
 
   return (
     <main className="mx-auto max-w-md px-4 py-6">
@@ -63,57 +111,56 @@ export default async function DashboardPage({ params }: PageProps) {
       </div>
 
       {isMosqueAdmin ? (
-        <>
-          <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold">Admin</h2>
-              <p className="text-sm text-gray-600">
-                Manage programs and mosque content.
-              </p>
-            </div>
+        <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold">Admin</h2>
+            <p className="text-sm text-gray-600">
+              Manage programs and mosque content.
+            </p>
+          </div>
 
-            {adminStats ? (
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Programs</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {adminStats.total_program_count}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Active</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {adminStats.active_program_count}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Teachers</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {adminStats.teacher_count}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Students</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {adminStats.student_count}
-                  </p>
-                </div>
+          {adminStats ? (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-gray-200 p-3">
+                <p className="text-sm text-gray-500">Programs</p>
+                <p className="mt-1 text-xl font-semibold">
+                  {adminStats.total_program_count}
+                </p>
               </div>
-            ) : null}
 
-            <div className="mt-4">
-              <Link
-                href={`/m/${slug}/admin/programs`}
-                className="block rounded-xl bg-black px-4 py-3 text-center text-sm font-medium text-white"
-              >
-                Manage Programs
-              </Link>
+              <div className="rounded-xl border border-gray-200 p-3">
+                <p className="text-sm text-gray-500">Active</p>
+                <p className="mt-1 text-xl font-semibold">
+                  {adminStats.active_program_count}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 p-3">
+                <p className="text-sm text-gray-500">Teachers</p>
+                <p className="mt-1 text-xl font-semibold">
+                  {adminStats.teacher_count}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 p-3">
+                <p className="text-sm text-gray-500">Students</p>
+                <p className="mt-1 text-xl font-semibold">
+                  {adminStats.student_count}
+                </p>
+              </div>
             </div>
-          </section>
-        </>
+          ) : null}
+
+          <div className="mt-4">
+            <Link
+              href={`/m/${slug}/admin/programs`}
+              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+              style={{ backgroundColor: "var(--primary-color)" }}
+            >
+              Manage Programs
+            </Link>
+          </div>
+        </section>
       ) : null}
 
       {isTeacher ? (
@@ -146,7 +193,8 @@ export default async function DashboardPage({ params }: PageProps) {
           <div className="mt-4 space-y-3">
             <Link
               href={`/m/${slug}/classes`}
-              className="block rounded-xl bg-black px-4 py-3 text-center text-sm font-medium text-white"
+              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+              style={{ backgroundColor: primaryColor }}
             >
               My Classes
             </Link>
@@ -154,6 +202,7 @@ export default async function DashboardPage({ params }: PageProps) {
             <Link
               href={`/m/${slug}/students`}
               className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+              style={{ backgroundColor: secondaryColor }}
             >
               View Students
             </Link>
@@ -166,12 +215,6 @@ export default async function DashboardPage({ params }: PageProps) {
           <section className="mt-8">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">My Enrollments</h2>
-              <Link
-                href={`/m/${slug}/programs`}
-                className="text-sm font-medium underline underline-offset-4"
-              >
-                Browse Programs
-              </Link>
             </div>
 
             {enrollments.length === 0 ? (
@@ -181,7 +224,7 @@ export default async function DashboardPage({ params }: PageProps) {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {enrollments.map((enrollment) => {
                   const program = Array.isArray(enrollment.programs)
                     ? enrollment.programs[0]
@@ -190,27 +233,22 @@ export default async function DashboardPage({ params }: PageProps) {
                   if (!program) return null;
 
                   return (
-                    <article
+                    <StudentEnrollmentCard
                       key={enrollment.id}
-                      className="rounded-xl border border-gray-200 p-4"
-                    >
-                      <h3 className="text-base font-semibold">{program.title}</h3>
-
-                      {program.description ? (
-                        <p className="mt-2 text-sm leading-6 text-gray-600">
-                          {program.description}
-                        </p>
-                      ) : null}
-
-                      <div className="mt-4">
-                        <Link
-                          href={`/m/${slug}/programs/${program.id}`}
-                          className="text-sm font-medium underline underline-offset-4"
-                        >
-                          View Program
-                        </Link>
-                      </div>
-                    </article>
+                      slug={slug}
+                      program={{
+                        id: program.id,
+                        title: program.title,
+                        description: program.description ?? null,
+                        schedule_days: program.schedule_days ?? [],
+                        schedule_start_time: program.schedule_start_time ?? null,
+                        schedule_end_time: program.schedule_end_time ?? null,
+                        schedule_timezone: program.schedule_timezone ?? "America/Edmonton",
+                      }}
+                      latestAnnouncement={
+                        latestAnnouncementByProgramId.get(program.id) ?? null
+                      }
+                    />
                   );
                 })}
               </div>
@@ -220,7 +258,8 @@ export default async function DashboardPage({ params }: PageProps) {
           <section className="mt-8 space-y-3">
             <Link
               href={`/m/${slug}/classes`}
-              className="block rounded-xl bg-black px-4 py-3 text-center text-sm font-medium text-white"
+              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+              style={{ backgroundColor: "var(--primary-color)" }}
             >
               Go to My Classes
             </Link>
@@ -228,6 +267,7 @@ export default async function DashboardPage({ params }: PageProps) {
             <Link
               href={`/m/${slug}/programs`}
               className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+              style={{ backgroundColor: "var(--secondary-color)" }}
             >
               Explore More Programs
             </Link>

@@ -6,7 +6,17 @@ export async function getMosqueBySlug(slug: string) {
 
   const { data: mosque, error } = await supabase
     .from("mosques")
-    .select("id, name, slug, logo_url")
+    .select(`
+  id,
+  name,
+  slug,
+  logo_url,
+  primary_color,
+  secondary_color,
+  welcome_title,
+  welcome_description,
+  features
+`)
     .eq("slug", slug)
     .maybeSingle(); // Try to load the mosque that matches the URL slug.
 

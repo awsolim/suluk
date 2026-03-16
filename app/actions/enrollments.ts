@@ -105,3 +105,45 @@ export async function enrollInProgram(formData: FormData) {
   // Return the user to the same program details page after enrolling.
   redirect(nextPath);
 }
+
+export async function withdrawFromProgram(formData: FormData) {
+  const slug = String(formData.get("slug") ?? "").trim(); // Read the tenant slug so redirects stay mosque-scoped.
+  const programId = String(formData.get("programId") ?? "").trim(); // Read the target program id for the withdrawal.
+  const nextPath = `/m/${slug}/programs/${programId}`; // Return the user back to the same public program page.
+
+  if (!slug || !programId) {
+    redirect("/"); // Reject malformed submissions with a safe fallback.
+  }
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser(); // Load the currently authenticated user.
+
+  if (!user) {
+    redirect(`/m/${slug}/login?next=${encodeURIComponent(nextPath)}`); // Require login before allowing withdrawal.
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle(); // Load the current user's profile row.
+
+  if (profileError || !profile) {
+    throw new Error("Could not load student profile.");
+  }
+
+  const { error: deleteError } = await supabase
+    .from("enrollments")
+    .delete()
+    .eq("program_id", programId)
+    .eq("student_profile_id", profile.id); // Remove only this student's enrollment for this program.
+
+  if (deleteError) {
+    throw new Error(`Failed to withdraw: ${deleteError.message}`);
+  }
+
+  redirect(nextPath); // Return the user to the same public program page after withdrawal.
+}

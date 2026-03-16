@@ -7,6 +7,7 @@ import {
   getMosqueMembershipForUser,
   getTeacherProgramByIdInMosque,
 } from "@/lib/supabase/queries";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 type TeacherProgramEditPageProps = {
   params: Promise<{
@@ -115,12 +116,13 @@ export default async function TeacherProgramEditPage({
         </div>
 
         <div className="space-y-3">
-          <button
+          {/* <button
             type="submit"
             className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
           >
             Save Changes
-          </button>
+          </button> */}
+          <SubmitButton pendingText="Saving...">Save Chnages</SubmitButton>
 
           <Link
             href={`/m/${slug}/teacher/programs/${program.id}`}

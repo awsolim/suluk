@@ -78,10 +78,33 @@ export async function getProgramByIdForMosque(
 ) {
   const supabase = await createClient();
 
-  // Load a single active program only if it belongs to the given mosque
+  // Load one active public program for this mosque along with the assigned teacher's basic contact info
+  // and the recurring weekly schedule fields needed for the student class view.
   const { data, error } = await supabase
     .from("programs")
-    .select("*")
+    .select(`
+      id,
+      mosque_id,
+      teacher_profile_id,
+      title,
+      description,
+      is_active,
+      thumbnail_url,
+      price_monthly_cents,
+      schedule_days,
+      schedule_start_time,
+      schedule_end_time,
+      schedule_timezone,
+      schedule_notes,
+      created_at,
+      updated_at,
+      teacher:profiles!programs_teacher_profile_id_fkey (
+        id,
+        full_name,
+        avatar_url,
+        phone_number
+      )
+    `)
     .eq("id", programId)
     .eq("mosque_id", mosqueId)
     .eq("is_active", true)
@@ -91,7 +114,33 @@ export async function getProgramByIdForMosque(
     throw new Error(`Failed to load program: ${error.message}`);
   }
 
-  return data;
+  if (!data) {
+    return null;
+  }
+
+  // Normalize the joined teacher relation so the page can use flat fields.
+  const teacher = Array.isArray(data.teacher) ? data.teacher[0] : data.teacher;
+
+  return {
+    id: data.id,
+    mosque_id: data.mosque_id,
+    teacher_profile_id: data.teacher_profile_id,
+    title: data.title,
+    description: data.description,
+    is_active: data.is_active,
+    thumbnail_url: data.thumbnail_url,
+    price_monthly_cents: data.price_monthly_cents,
+    schedule_days: data.schedule_days ?? [], // Added: weekly recurring class days for schedule display.
+    schedule_start_time: data.schedule_start_time ?? null, // Added: class start time for schedule display.
+    schedule_end_time: data.schedule_end_time ?? null, // Added: class end time for schedule display.
+    schedule_timezone: data.schedule_timezone ?? "America/Edmonton", // Added: timezone for schedule calculations.
+    schedule_notes: data.schedule_notes ?? null, // Added: optional schedule notes for the student view.
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    teacher_name: teacher?.full_name ?? null,
+    teacher_avatar_url: teacher?.avatar_url ?? null,
+    teacher_phone_number: teacher?.phone_number ?? null,
+  };
 }
 
 
@@ -150,7 +199,6 @@ export async function getEnrollmentsForStudentInMosque(
 ) {
   const supabase = await createClient();
 
-  // Load this student's enrollments, but only for programs that belong to the current mosque
   const { data, error } = await supabase
     .from("enrollments")
     .select(`
@@ -161,7 +209,11 @@ export async function getEnrollmentsForStudentInMosque(
         mosque_id,
         title,
         description,
-        is_active
+        is_active,
+        schedule_days,
+        schedule_start_time,
+        schedule_end_time,
+        schedule_timezone
       )
     `)
     .eq("student_profile_id", studentProfileId)
@@ -171,7 +223,30 @@ export async function getEnrollmentsForStudentInMosque(
     throw new Error(`Failed to load enrollments: ${error.message}`);
   }
 
-  return data ?? [];
+  return (data ?? []).map((enrollment) => {
+    const rawProgram = Array.isArray(enrollment.programs)
+      ? enrollment.programs[0]
+      : enrollment.programs;
+
+    return {
+      id: enrollment.id,
+      program_id: enrollment.program_id,
+      programs: rawProgram
+        ? {
+            id: rawProgram.id,
+            mosque_id: rawProgram.mosque_id,
+            title: rawProgram.title,
+            description: rawProgram.description,
+            is_active: rawProgram.is_active,
+            schedule_days: rawProgram.schedule_days ?? [],
+            schedule_start_time: rawProgram.schedule_start_time ?? null,
+            schedule_end_time: rawProgram.schedule_end_time ?? null,
+            schedule_timezone:
+              rawProgram.schedule_timezone ?? "America/Edmonton",
+          }
+        : null,
+    };
+  });
 }
 
 export async function getMosqueMembershipForUser(
@@ -630,3 +705,102 @@ export async function getAdminDashboardStats(mosqueId: string) {
   };
 }
 
+export async function getAnnouncementsForProgram(programId: string) {
+  const supabase = await createClient();
+
+  // Load all announcements for one program along with the posting teacher's basic profile info.
+  const { data, error } = await supabase
+    .from("program_announcements")
+    .select(`
+      id,
+      program_id,
+      author_profile_id,
+      message,
+      created_at,
+      profiles!program_announcements_author_profile_id_fkey (
+        id,
+        full_name,
+        avatar_url
+      )
+    `)
+    .eq("program_id", programId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load announcements: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+export async function getTeacherAnnouncementAuthorProfile(profileId: string) {
+  const supabase = await createClient();
+
+  // Load the current teacher's basic profile info for the announcement composer preview.
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load announcement author profile: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getAllMosques() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("mosques")
+    .select("id, name, slug, logo_url")
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.error("Error loading mosques:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+export async function getLatestAnnouncementsForPrograms(programIds: string[]) {
+  const supabase = await createClient();
+
+  if (programIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("program_announcements")
+    .select(`
+      id,
+      program_id,
+      author_profile_id,
+      message,
+      created_at,
+      profiles!program_announcements_author_profile_id_fkey (
+        id,
+        full_name,
+        avatar_url
+      )
+    `)
+    .in("program_id", programIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load latest announcements: ${error.message}`);
+  }
+
+  const latestByProgramId = new Map<string, (typeof data)[number]>();
+
+  for (const announcement of data ?? []) {
+    if (!latestByProgramId.has(announcement.program_id)) {
+      latestByProgramId.set(announcement.program_id, announcement);
+    }
+  }
+
+  return Array.from(latestByProgramId.values());
+}

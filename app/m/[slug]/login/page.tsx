@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { login } from "@/app/actions/auth";
 import { getMosqueBySlug } from "@/lib/tenants";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 type TenantLoginPageProps = {
   params: Promise<{
@@ -68,12 +69,7 @@ export default async function TenantLoginPage({
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
-          >
-            Log in
-          </button>
+          <SubmitButton pendingText="Logging in...">Log In</SubmitButton>
         </form>
 
         <p className="mt-5 text-sm text-gray-600">

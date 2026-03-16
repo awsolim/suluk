@@ -6,7 +6,9 @@ import {
   getProfileForCurrentUser,
   getEnrollmentForStudent,
   getMosqueMembershipForUser,
+  getProgramSubscriptionForStudent,
 } from "@/lib/supabase/queries";
+import { isSubscriptionActive } from "@/lib/billing";
 import { createClient } from "@/lib/supabase/server";
 import {
   enrollInProgram,
@@ -24,7 +26,6 @@ type PageProps = {
   }>;
 };
 
-// Added: fallback thumbnail so the public page still looks complete when no program image exists.
 const DEFAULT_PROGRAM_THUMBNAIL =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -45,7 +46,6 @@ const DEFAULT_PROGRAM_THUMBNAIL =
     </svg>
   `);
 
-// Added: fallback avatar so the contact-teacher section still renders even without a teacher photo.
 const DEFAULT_AVATAR =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -56,7 +56,6 @@ const DEFAULT_AVATAR =
     </svg>
   `);
 
-// Added: format the stored monthly price in cents into a human-friendly string.
 function formatMonthlyPrice(priceMonthlyCents: number | null) {
   if (priceMonthlyCents == null) {
     return "Pricing coming soon";
@@ -76,83 +75,83 @@ export default async function ProgramDetailsPage({
   const { slug, programId } = await params;
   const { from } = await searchParams;
 
-  const supabase = await createClient(); // Added: needed to convert storage paths into public image URLs.
+  const supabase = await createClient();
 
-  // Load tenant mosque.
   const mosque = await getMosqueBySlug(slug);
-  const primaryColor = mosque.primary_color || "#111827";
-
 
   if (!mosque) {
     notFound();
   }
 
-  // Load program only if it belongs to this mosque.
+  const primaryColor = mosque.primary_color || "#111827";
+
   const program = await getProgramByIdForMosque(programId, mosque.id);
+
   if (!program) {
     notFound();
   }
 
-  // Load current user's profile if signed in.
   const profile = await getProfileForCurrentUser();
 
-  // Load the current user's mosque-scoped membership if signed in so the page can hide enrollment for teachers/admins.
   const membership = profile
     ? await getMosqueMembershipForUser(profile.id, mosque.id)
     : null;
 
-  const isTeacher = membership?.role === "teacher"; // Teachers should not see enrollment actions.
-  const isMosqueAdmin = membership?.role === "mosque_admin"; // Mosque admins should not see enrollment actions.
-  const canEnroll = profile && !isTeacher && !isMosqueAdmin; // Only signed-in users without internal mosque staff roles may enroll.
+  const isTeacher = membership?.role === "teacher";
+  const isMosqueAdmin = membership?.role === "mosque_admin";
+  const canEnroll = profile && !isTeacher && !isMosqueAdmin;
 
-  // Check whether the signed-in student user is already enrolled.
   const enrollment = canEnroll
     ? await getEnrollmentForStudent(program.id, profile.id)
     : null;
 
-  // Preserve admin return path when this page was opened from admin mode.
+  const subscription =
+    profile && program.is_paid && !isTeacher && !isMosqueAdmin
+      ? await getProgramSubscriptionForStudent(profile.id, program.id)
+      : null;
+
+  const hasActiveSubscription = isSubscriptionActive(subscription);
+
   const isFromAdmin = from === "admin";
 
-  // Choose the correct back destination based on page context.
   const backHref = isFromAdmin
     ? `/m/${slug}/admin/programs`
     : `/m/${slug}/programs`;
 
-  // Choose the correct back link label based on page context.
   const backLabel = isFromAdmin ? "Back to Manage Programs" : "Back to Programs";
 
-  // Added: convert the saved program thumbnail path into a browser-ready public URL.
   const thumbnailSrc = program.thumbnail_url
-    ? supabase.storage.from("media").getPublicUrl(program.thumbnail_url).data.publicUrl
+    ? supabase.storage.from("media").getPublicUrl(program.thumbnail_url).data
+        .publicUrl
     : DEFAULT_PROGRAM_THUMBNAIL;
 
-  // Added: convert the saved teacher avatar path into a browser-ready public URL.
   const teacherAvatarSrc = program.teacher_avatar_url
-    ? supabase.storage.from("media").getPublicUrl(program.teacher_avatar_url).data.publicUrl
+    ? supabase.storage.from("media").getPublicUrl(program.teacher_avatar_url).data
+        .publicUrl
     : DEFAULT_AVATAR;
 
-  const teacherName = program.teacher_name || "Teacher not assigned"; // Added: readable teacher fallback.
-  const teacherPhone = program.teacher_phone_number || "Phone number not available"; // Added: readable phone fallback.
+  const teacherName = program.teacher_name || "Teacher not assigned";
+  const teacherPhone = program.teacher_phone_number || "Phone number not available";
+
+  const isPaidProgram = Boolean(program.is_paid);
 
   return (
     <main className="mx-auto max-w-md space-y-4 px-4 py-6">
       <Link
-  href={backHref}
-  className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-white"
-  style={{ backgroundColor: primaryColor }}
->
-  ← Back to Programs
-</Link>
-      
+        href={backHref}
+        className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-white"
+        style={{ backgroundColor: primaryColor }}
+      >
+        ← Back to Programs
+      </Link>
+
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        {/* Added: top hero image for the public program detail page. */}
         <img
           src={thumbnailSrc}
           alt={`${program.title} thumbnail`}
           className="h-48 w-full object-cover"
         />
 
-        
         <div className="space-y-1 p-4">
           <h1 className="text-2xl font-semibold tracking-tight">{program.title}</h1>
           <p className="text-sm text-gray-500">{mosque.name}</p>
@@ -175,10 +174,19 @@ export default async function ProgramDetailsPage({
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="text-base font-semibold">Monthly Rate</h2>
+        <h2 className="text-base font-semibold">
+          {isPaidProgram ? "Monthly Subscription" : "Monthly Rate"}
+        </h2>
+
         <p className="mt-3 text-lg font-semibold text-gray-900">
           {formatMonthlyPrice(program.price_monthly_cents ?? null)}
         </p>
+
+        {isPaidProgram ? (
+          <p className="mt-2 text-sm text-gray-600">
+            This program requires an active subscription for class access.
+          </p>
+        ) : null}
 
         <div className="mt-4 space-y-3">
           {!profile ? (
@@ -187,9 +195,9 @@ export default async function ProgramDetailsPage({
                 `/m/${slug}/programs/${program.id}${isFromAdmin ? "?from=admin" : ""}`
               )}`}
               className="block w-full rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
-              style={{backgroundColor:primaryColor}}
+              style={{ backgroundColor: primaryColor }}
             >
-              Log in to Enroll
+              {isPaidProgram ? "Log in to Subscribe" : "Log in to Enroll"}
             </Link>
           ) : isTeacher ? (
             <div className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium text-gray-600">
@@ -199,32 +207,53 @@ export default async function ProgramDetailsPage({
             <div className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium text-gray-600">
               Mosque admins cannot enroll in programs.
             </div>
+          ) : isPaidProgram ? (
+            hasActiveSubscription ? (
+              enrollment ? (
+                <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
+                  Subscription active. You can access this class from My Classes.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
+                    Subscription active. Enrollment is ready.
+                  </div>
+
+                  <form action={enrollInProgram}>
+                    <input type="hidden" name="slug" value={slug} />
+                    <input type="hidden" name="programId" value={program.id} />
+                    <SubmitButton pendingText="Enrolling...">
+                      Enroll in Class
+                    </SubmitButton>
+                  </form>
+                </div>
+              )
+            ) : (
+              <div className="space-y-3">
+                <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-800">
+                  Subscription required. Stripe checkout is not connected yet.
+                </div>
+
+                <button
+                  type="button"
+                  disabled
+                  className="w-full cursor-not-allowed rounded-xl px-4 py-3 text-sm font-medium text-white opacity-60"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  Subscription Required
+                </button>
+              </div>
+            )
           ) : enrollment ? (
             <form action={withdrawFromProgram}>
-              <input type="hidden" name="slug" value={slug} />{/* Pass the tenant slug so withdrawal stays mosque-scoped. */}
-              <input type="hidden" name="programId" value={program.id} />{/* Pass the program id so the action withdraws from the correct program. */}
-
-              {/* <button
-                type="submit"
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700"
-              >
-                Withdraw
-              </button> */}
+              <input type="hidden" name="slug" value={slug} />
+              <input type="hidden" name="programId" value={program.id} />
               <SubmitButton pendingText="Withdrawing...">Withdraw</SubmitButton>
             </form>
           ) : (
             <form action={enrollInProgram}>
-              <input type="hidden" name="slug" value={slug} />{/* Pass the tenant slug so enrollment stays mosque-scoped. */}
-              <input type="hidden" name="programId" value={program.id} />{/* Pass the program id so the action enrolls into the correct program. */}
-
-              {/* <button
-                type="submit"
-                className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white"
-                style={{backgroundColor: primaryColor}}
-
-              >
-                Enroll
-              </button> */}
+              <input type="hidden" name="slug" value={slug} />
+              <input type="hidden" name="programId" value={program.id} />
               <SubmitButton pendingText="Enrolling...">Enroll</SubmitButton>
             </form>
           )}
@@ -235,7 +264,6 @@ export default async function ProgramDetailsPage({
         <h2 className="text-base font-semibold">Contact Teacher</h2>
 
         <div className="mt-4 flex items-center gap-3">
-          {/* Added: teacher avatar for the contact section. */}
           <div className="h-14 w-14 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
             <img
               src={teacherAvatarSrc}

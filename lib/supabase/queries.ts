@@ -22,7 +22,8 @@ export async function getMosqueBySlug(slug: string) {
 export async function getProgramsByMosqueId(mosqueId: string) {
   const supabase = await createClient();
 
-  // Load active programs for a single mosque and join the assigned teacher profile
+  // Load active programs for a single mosque and join the assigned teacher profile.
+  // Include billing-ready fields so the app can distinguish free vs paid programs.
   const { data, error } = await supabase
     .from("programs")
     .select(`
@@ -32,7 +33,11 @@ export async function getProgramsByMosqueId(mosqueId: string) {
       title,
       description,
       is_active,
+      is_paid,
       thumbnail_url,
+      price_monthly_cents,
+      stripe_product_id,
+      stripe_price_id,
       created_at,
       updated_at,
       teacher:profiles!programs_teacher_profile_id_fkey (
@@ -50,8 +55,6 @@ export async function getProgramsByMosqueId(mosqueId: string) {
   }
 
   return (data ?? []).map((program) => {
-    // Added: Supabase may return the joined teacher relation as an array,
-    // so normalize it to a single teacher object for easier page usage.
     const teacher = Array.isArray(program.teacher)
       ? program.teacher[0]
       : program.teacher;
@@ -63,23 +66,27 @@ export async function getProgramsByMosqueId(mosqueId: string) {
       title: program.title,
       description: program.description,
       is_active: program.is_active,
+      is_paid: program.is_paid,
       thumbnail_url: program.thumbnail_url,
+      price_monthly_cents: program.price_monthly_cents ?? null,
+      stripe_product_id: program.stripe_product_id ?? null,
+      stripe_price_id: program.stripe_price_id ?? null,
       created_at: program.created_at,
       updated_at: program.updated_at,
-      teacher_name: teacher?.full_name ?? null, // Added: expose teacher name directly for the UI
-      teacher_avatar_url: teacher?.avatar_url ?? null, // Added: expose teacher avatar storage path directly for the UI
+      teacher_name: teacher?.full_name ?? null,
+      teacher_avatar_url: teacher?.avatar_url ?? null,
     };
   });
 }
-
 export async function getProgramByIdForMosque(
   programId: string,
   mosqueId: string
 ) {
   const supabase = await createClient();
 
-  // Load one active public program for this mosque along with the assigned teacher's basic contact info
-  // and the recurring weekly schedule fields needed for the student class view.
+  // Load one active public program for this mosque along with the assigned teacher's
+  // basic contact info and the recurring weekly schedule fields needed for the student view.
+  // Include billing-ready fields so the app can distinguish free vs paid programs.
   const { data, error } = await supabase
     .from("programs")
     .select(`
@@ -89,8 +96,11 @@ export async function getProgramByIdForMosque(
       title,
       description,
       is_active,
+      is_paid,
       thumbnail_url,
       price_monthly_cents,
+      stripe_product_id,
+      stripe_price_id,
       schedule_days,
       schedule_start_time,
       schedule_end_time,
@@ -118,7 +128,6 @@ export async function getProgramByIdForMosque(
     return null;
   }
 
-  // Normalize the joined teacher relation so the page can use flat fields.
   const teacher = Array.isArray(data.teacher) ? data.teacher[0] : data.teacher;
 
   return {
@@ -128,13 +137,16 @@ export async function getProgramByIdForMosque(
     title: data.title,
     description: data.description,
     is_active: data.is_active,
+    is_paid: data.is_paid,
     thumbnail_url: data.thumbnail_url,
-    price_monthly_cents: data.price_monthly_cents,
-    schedule_days: data.schedule_days ?? [], // Added: weekly recurring class days for schedule display.
-    schedule_start_time: data.schedule_start_time ?? null, // Added: class start time for schedule display.
-    schedule_end_time: data.schedule_end_time ?? null, // Added: class end time for schedule display.
-    schedule_timezone: data.schedule_timezone ?? "America/Edmonton", // Added: timezone for schedule calculations.
-    schedule_notes: data.schedule_notes ?? null, // Added: optional schedule notes for the student view.
+    price_monthly_cents: data.price_monthly_cents ?? null,
+    stripe_product_id: data.stripe_product_id ?? null,
+    stripe_price_id: data.stripe_price_id ?? null,
+    schedule_days: data.schedule_days ?? [],
+    schedule_start_time: data.schedule_start_time ?? null,
+    schedule_end_time: data.schedule_end_time ?? null,
+    schedule_timezone: data.schedule_timezone ?? "America/Edmonton",
+    schedule_notes: data.schedule_notes ?? null,
     created_at: data.created_at,
     updated_at: data.updated_at,
     teacher_name: teacher?.full_name ?? null,
@@ -803,4 +815,32 @@ export async function getLatestAnnouncementsForPrograms(programIds: string[]) {
   }
 
   return Array.from(latestByProgramId.values());
+}
+
+export async function getProgramSubscriptionForStudent(
+  profileId: string,
+  programId: string
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("program_subscriptions")
+    .select("*")
+    .eq("profile_id", profileId)
+    .eq("program_id", programId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load program subscription: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function hasActiveProgramSubscription(
+  profileId: string,
+  programId: string
+) {
+  const subscription = await getProgramSubscriptionForStudent(profileId, programId);
+  return subscription?.status === "active";
 }

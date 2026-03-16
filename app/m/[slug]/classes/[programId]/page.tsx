@@ -18,6 +18,10 @@ import {
   normalizeScheduleDays,
   toDateKey,
 } from "@/lib/schedule";
+import {
+  getProgramSubscriptionForStudent,
+} from "@/lib/supabase/queries";
+import { canStudentAccessProgram } from "@/lib/billing";
 
 type StudentClassPageProps = {
   params: Promise<{
@@ -108,6 +112,20 @@ export default async function StudentClassPage({
   const todayKey = toDateKey(today);
 
   const { monthLabel, cells } = buildCalendarDaysForCurrentMonth(timeZone);
+
+  const subscription = program.is_paid
+  ? await getProgramSubscriptionForStudent(profile.id, program.id)
+  : null;
+
+const hasAccess = canStudentAccessProgram({
+  program,
+  isEnrolled: Boolean(enrollment),
+  subscription,
+});
+
+if (!hasAccess) {
+  redirect(`/m/${slug}/programs/${program.id}`);
+}
 
   return (
     <main className="mx-auto max-w-md space-y-4 px-4 py-6">

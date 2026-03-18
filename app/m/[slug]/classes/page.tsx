@@ -19,6 +19,8 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
   const { slug } = await params;
 
   const mosque = await getMosqueBySlug(slug);
+  const primaryColor = mosque.primary_color || "#111827";
+
 
   if (!mosque) {
     notFound();
@@ -34,6 +36,8 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
 
   const isMosqueAdmin = membership?.role === "mosque_admin";
   const isTeacher = membership?.role === "teacher";
+  const canManagePrograms =
+    isMosqueAdmin || (isTeacher && membership?.can_manage_programs);
 
   if (isMosqueAdmin) {
     const programs = await getProgramsByMosqueIdIncludingInactive(mosque.id);
@@ -119,9 +123,12 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
 
   if (isTeacher) {
     const teachingPrograms = await getProgramsForTeacherInMosque(profile.id, mosque.id);
+    const allPrograms = canManagePrograms
+      ? await getProgramsByMosqueIdIncludingInactive(mosque.id)
+      : [];
 
     return (
-      <section className="space-y-5">
+      <section className="space-y-6">
         <div>
           <p className="text-sm text-gray-500">{mosque.name}</p>
           <h1 className="text-2xl font-semibold tracking-tight">My Classes</h1>
@@ -130,53 +137,139 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
           </p>
         </div>
 
-        {teachingPrograms.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
-            <p className="text-sm text-gray-600">
-              You are not assigned to teach any classes here yet.
+        {canManagePrograms ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Link
+                href={`/m/${slug}/admin/programs/new`}
+                className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+                style={{backgroundColor:primaryColor}}
+              >
+                New Program
+              </Link>
+
+              
+            </div>
+
+            
+          </div>
+        ) : null}
+
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">My Classes</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Classes currently assigned to you.
             </p>
           </div>
-        ) : (
+
+          {teachingPrograms.length === 0 ? (
+            <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
+              <p className="text-sm text-gray-600">
+                You are not assigned to teach any classes.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {teachingPrograms.map((program) => (
+                <Link
+                  key={program.id}
+                  href={`/m/${slug}/teacher/programs/${program.id}`}
+                  className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+                >
+                  <article className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="text-base font-semibold">{program.title}</h2>
+
+                      {program.description ? (
+                        <p className="mt-2 text-sm leading-6 text-gray-600">
+                          {program.description}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-sm text-gray-500">
+                          No description yet.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex shrink-0 items-start gap-3">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          program.is_active
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {program.is_active ? "Active" : "Inactive"}
+                      </span>
+
+                      <span className="text-lg leading-none text-gray-400">›</span>
+                    </div>
+                  </article>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {canManagePrograms ? (
           <div className="space-y-3">
-            {teachingPrograms.map((program) => (
-              <Link
-                key={program.id}
-                href={`/m/${slug}/teacher/programs/${program.id}`}
-                className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
-              >
-                <article className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold">{program.title}</h2>
+            <div>
+              <h2 className="text-lg font-semibold">All Programs</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Edit and manage every program in this mosque.
+              </p>
+            </div>
 
-                    {program.description ? (
-                      <p className="mt-2 text-sm leading-6 text-gray-600">
-                        {program.description}
-                      </p>
-                    ) : (
-                      <p className="mt-2 text-sm text-gray-500">
-                        No description yet.
-                      </p>
-                    )}
-                  </div>
+            {allPrograms.length === 0 ? (
+              <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
+                <p className="text-sm text-gray-600">
+                  No programs have been created for this mosque yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allPrograms.map((program) => (
+                  <Link
+                    key={program.id}
+                    href={`/m/${slug}/admin/programs/${program.id}/edit`}
+                    className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+                  >
+                    <article className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-base font-semibold">{program.title}</h3>
 
-                  <div className="flex shrink-0 items-start gap-3">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        program.is_active
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {program.is_active ? "Active" : "Inactive"}
-                    </span>
+                        {program.description ? (
+                          <p className="mt-2 text-sm leading-6 text-gray-600">
+                            {program.description}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-gray-500">
+                            No description yet.
+                          </p>
+                        )}
+                      </div>
 
-                    <span className="text-lg leading-none text-gray-400">›</span>
-                  </div>
-                </article>
-              </Link>
-            ))}
+                      <div className="flex shrink-0 items-start gap-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            program.is_active
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {program.is_active ? "Active" : "Inactive"}
+                        </span>
+
+                        <span className="text-lg leading-none text-gray-400">›</span>
+                      </div>
+                    </article>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
       </section>
     );
   }
@@ -196,12 +289,13 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
       {enrollments.length === 0 ? (
         <div className="space-y-4 rounded-2xl border border-gray-200 p-4 shadow-sm">
           <p className="text-sm text-gray-600">
-            You are not enrolled in any classes here yet.
+            You are not enrolled in any classes.
           </p>
 
           <Link
             href={`/m/${slug}/programs`}
-            className="block rounded-xl bg-black px-4 py-3 text-center text-sm font-medium text-white"
+            className="block rounded-xl  px-4 py-3 text-center text-sm font-medium text-white"
+            style={{backgroundColor:primaryColor}}
           >
             Browse Programs
           </Link>

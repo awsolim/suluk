@@ -7,13 +7,15 @@ import {
   getEnrollmentForStudent,
   getMosqueMembershipForUser,
   getProgramSubscriptionForStudent,
+  getProgramApplicationForStudent,
 } from "@/lib/supabase/queries";
 import { isSubscriptionActive } from "@/lib/billing";
 import { createClient } from "@/lib/supabase/server";
+import { withdrawFromProgram } from "@/app/actions/enrollments";
 import {
-  enrollInProgram,
-  withdrawFromProgram,
-} from "@/app/actions/enrollments";
+  applyToProgram,
+  joinApprovedFreeProgram,
+} from "@/app/actions/applications";
 import SubmitButton from "@/components/ui/SubmitButton";
 
 type PageProps = {
@@ -99,11 +101,16 @@ export default async function ProgramDetailsPage({
 
   const isTeacher = membership?.role === "teacher";
   const isMosqueAdmin = membership?.role === "mosque_admin";
-  const canEnroll = profile && !isTeacher && !isMosqueAdmin;
 
-  const enrollment = canEnroll
-    ? await getEnrollmentForStudent(program.id, profile.id)
-    : null;
+  const enrollment =
+    profile && !isTeacher && !isMosqueAdmin
+      ? await getEnrollmentForStudent(program.id, profile.id)
+      : null;
+
+  const application =
+    profile && !isTeacher && !isMosqueAdmin
+      ? await getProgramApplicationForStudent(profile.id, program.id)
+      : null;
 
   const subscription =
     profile && program.is_paid && !isTeacher && !isMosqueAdmin
@@ -121,19 +128,31 @@ export default async function ProgramDetailsPage({
   const backLabel = isFromAdmin ? "Back to Manage Programs" : "Back to Programs";
 
   const thumbnailSrc = program.thumbnail_url
-    ? supabase.storage.from("media").getPublicUrl(program.thumbnail_url).data
-        .publicUrl
+    ? supabase.storage.from("media").getPublicUrl(program.thumbnail_url).data.publicUrl
     : DEFAULT_PROGRAM_THUMBNAIL;
 
   const teacherAvatarSrc = program.teacher_avatar_url
-    ? supabase.storage.from("media").getPublicUrl(program.teacher_avatar_url).data
-        .publicUrl
+    ? supabase.storage.from("media").getPublicUrl(program.teacher_avatar_url).data.publicUrl
     : DEFAULT_AVATAR;
 
   const teacherName = program.teacher_name || "Teacher not assigned";
   const teacherPhone = program.teacher_phone_number || "Phone number not available";
 
   const isPaidProgram = Boolean(program.is_paid);
+
+  const genderTagLabel =
+    program.audience_gender === "male"
+      ? "Brothers"
+      : program.audience_gender === "female"
+      ? "Sisters"
+      : null;
+
+  const genderTagClass =
+    program.audience_gender === "male"
+      ? "bg-blue-100 text-blue-700"
+      : program.audience_gender === "female"
+      ? "bg-pink-100 text-pink-700"
+      : "";
 
   return (
     <main className="mx-auto max-w-md space-y-4 px-4 py-6">
@@ -156,6 +175,20 @@ export default async function ProgramDetailsPage({
           <h1 className="text-2xl font-semibold tracking-tight">{program.title}</h1>
           <p className="text-sm text-gray-500">{mosque.name}</p>
           <p className="text-sm text-gray-700">{teacherName}</p>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {genderTagLabel ? (
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${genderTagClass}`}>
+                {genderTagLabel}
+              </span>
+            ) : null}
+
+            {program.age_range_text ? (
+              <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700">
+                {program.age_range_text}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -184,9 +217,13 @@ export default async function ProgramDetailsPage({
 
         {isPaidProgram ? (
           <p className="mt-2 text-sm text-gray-600">
-            This program requires an active subscription for class access.
+            This program requires teacher approval first, then payment before joining.
           </p>
-        ) : null}
+        ) : (
+          <p className="mt-2 text-sm text-gray-600">
+            This program requires teacher approval before joining.
+          </p>
+        )}
 
         <div className="mt-4 space-y-3">
           {!profile ? (
@@ -197,41 +234,45 @@ export default async function ProgramDetailsPage({
               className="block w-full rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
               style={{ backgroundColor: primaryColor }}
             >
-              {isPaidProgram ? "Log in to Subscribe" : "Log in to Enroll"}
+              Log in to Apply
             </Link>
           ) : isTeacher ? (
             <div className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium text-gray-600">
-              Teachers cannot enroll in programs.
+              Teachers cannot apply to programs.
             </div>
           ) : isMosqueAdmin ? (
             <div className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium text-gray-600">
-              Mosque admins cannot enroll in programs.
+              Mosque admins cannot apply to programs.
             </div>
-          ) : isPaidProgram ? (
+          ) : enrollment ? (
+            <form action={withdrawFromProgram}>
+              <input type="hidden" name="slug" value={slug} />
+              <input type="hidden" name="programId" value={program.id} />
+              <SubmitButton pendingText="Withdrawing...">Withdraw</SubmitButton>
+            </form>
+          ) : application?.status === "pending" ? (
+            <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-800">
+              Application submitted. Waiting for teacher approval.
+            </div>
+          ) : application?.status === "rejected" ? (
+            <div className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-700">
+              Your application was not approved.
+            </div>
+          ) : application?.status === "accepted" && !isPaidProgram ? (
+            <form action={joinApprovedFreeProgram}>
+              <input type="hidden" name="slug" value={slug} />
+              <input type="hidden" name="programId" value={program.id} />
+              <SubmitButton pendingText="Joining...">Join Class</SubmitButton>
+            </form>
+          ) : application?.status === "accepted" && isPaidProgram ? (
             hasActiveSubscription ? (
-              enrollment ? (
-                <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
-                  Subscription active. You can access this class from My Classes.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
-                    Subscription active. Enrollment is ready.
-                  </div>
-
-                  <form action={enrollInProgram}>
-                    <input type="hidden" name="slug" value={slug} />
-                    <input type="hidden" name="programId" value={program.id} />
-                    <SubmitButton pendingText="Enrolling...">
-                      Enroll in Class
-                    </SubmitButton>
-                  </form>
-                </div>
-              )
+              <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
+                Payment active. You can complete joining from your inbox once Stripe is connected.
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-800">
-                  Subscription required. Stripe checkout is not connected yet.
+                  Teacher approved. Complete payment and join class.
                 </div>
 
                 <button
@@ -240,21 +281,15 @@ export default async function ProgramDetailsPage({
                   className="w-full cursor-not-allowed rounded-xl px-4 py-3 text-sm font-medium text-white opacity-60"
                   style={{ backgroundColor: primaryColor }}
                 >
-                  Subscription Required
+                  Complete Payment and Join Class
                 </button>
               </div>
             )
-          ) : enrollment ? (
-            <form action={withdrawFromProgram}>
-              <input type="hidden" name="slug" value={slug} />
-              <input type="hidden" name="programId" value={program.id} />
-              <SubmitButton pendingText="Withdrawing...">Withdraw</SubmitButton>
-            </form>
           ) : (
-            <form action={enrollInProgram}>
+            <form action={applyToProgram}>
               <input type="hidden" name="slug" value={slug} />
               <input type="hidden" name="programId" value={program.id} />
-              <SubmitButton pendingText="Enrolling...">Enroll</SubmitButton>
+              <SubmitButton pendingText="Applying...">Apply to Join</SubmitButton>
             </form>
           )}
         </div>

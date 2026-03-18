@@ -7,21 +7,20 @@ import {
   getEnrollmentForStudent,
   getMosqueMembershipForUser,
   getAnnouncementsForProgram,
-} from "@/lib/supabase/queries";
-import { createClient } from "@/lib/supabase/server";
-import {
-  buildCalendarDaysForCurrentMonth,
-  formatUpcomingClassLine,
-  formatWeekdayList,
-  formatTimeRange,
-  getUpcomingClassDates,
-  normalizeScheduleDays,
-  toDateKey,
-} from "@/lib/schedule";
-import {
   getProgramSubscriptionForStudent,
 } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/server";
 import { canStudentAccessProgram } from "@/lib/billing";
+import { withdrawFromProgram } from "@/app/actions/enrollments";
+import SubmitButton from "@/components/ui/SubmitButton";
+import {
+  buildCalendarDaysForCurrentMonth,
+  formatProgramScheduleSummary,
+  formatUpcomingScheduleLine,
+  getUpcomingScheduleSessions,
+  normalizeProgramSchedule,
+  toDateKey,
+} from "@/lib/schedule";
 
 type StudentClassPageProps = {
   params: Promise<{
@@ -72,7 +71,11 @@ export default async function StudentClassPage({
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
 
-  if (membership?.role === "teacher" || membership?.role === "mosque_admin") {
+  if (
+    membership?.role === "teacher" ||
+    membership?.role === "lead_teacher" ||
+    membership?.role === "mosque_admin"
+  ) {
     redirect(`/m/${slug}/classes`);
   }
 
@@ -90,21 +93,28 @@ export default async function StudentClassPage({
 
   const announcements = await getAnnouncementsForProgram(program.id);
 
-  const scheduleDays = normalizeScheduleDays(program.schedule_days);
+  const subscription = program.is_paid
+    ? await getProgramSubscriptionForStudent(profile.id, program.id)
+    : null;
+
+  const hasAccess = canStudentAccessProgram({
+    program,
+    isEnrolled: Boolean(enrollment),
+    subscription,
+  });
+
+  if (!hasAccess) {
+    redirect(`/m/${slug}/programs/${program.id}`);
+  }
+
+  const schedule = normalizeProgramSchedule(program.schedule);
   const timeZone = program.schedule_timezone || "America/Edmonton";
 
-  const weeklyScheduleText =
-    scheduleDays.length > 0
-      ? `${formatWeekdayList(scheduleDays)} · ${formatTimeRange(
-          program.schedule_start_time,
-          program.schedule_end_time,
-          timeZone
-        )}`
-      : "Schedule not set yet";
+  const weeklyScheduleText = formatProgramScheduleSummary(schedule, timeZone);
 
-  const upcomingDates = getUpcomingClassDates(scheduleDays, 3, timeZone);
+  const upcomingSessions = getUpcomingScheduleSessions(schedule, 3, timeZone);
   const highlightedDateKeys = new Set(
-    upcomingDates.slice(0, 2).map((date) => toDateKey(date))
+    upcomingSessions.slice(0, 2).map((session) => toDateKey(session.date))
   );
 
   const today = new Date();
@@ -112,20 +122,6 @@ export default async function StudentClassPage({
   const todayKey = toDateKey(today);
 
   const { monthLabel, cells } = buildCalendarDaysForCurrentMonth(timeZone);
-
-  const subscription = program.is_paid
-  ? await getProgramSubscriptionForStudent(profile.id, program.id)
-  : null;
-
-const hasAccess = canStudentAccessProgram({
-  program,
-  isEnrolled: Boolean(enrollment),
-  subscription,
-});
-
-if (!hasAccess) {
-  redirect(`/m/${slug}/programs/${program.id}`);
-}
 
   return (
     <main className="mx-auto max-w-md space-y-4 px-4 py-6">
@@ -147,7 +143,7 @@ if (!hasAccess) {
       <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 className="text-base font-semibold">Schedule</h2>
 
-        <p className="mt-3 truncate text-sm text-gray-600">
+        <p className="mt-3 text-sm text-gray-600">
           Weekly: {weeklyScheduleText}
         </p>
 
@@ -225,24 +221,19 @@ if (!hasAccess) {
           </div>
         </div>
 
-        {upcomingDates.length > 0 ? (
+        {upcomingSessions.length > 0 ? (
           <div className="mt-4 space-y-2">
             <h3 className="text-sm font-medium text-gray-900">
               Upcoming Classes
             </h3>
 
             <div className="space-y-2">
-              {upcomingDates.map((date) => (
+              {upcomingSessions.map((session) => (
                 <div
-                  key={toDateKey(date)}
+                  key={`${toDateKey(session.date)}-${session.slot.day}-${session.slot.start}`}
                   className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700"
                 >
-                  {formatUpcomingClassLine(
-                    date,
-                    program.schedule_start_time,
-                    program.schedule_end_time,
-                    timeZone
-                  )}
+                  {formatUpcomingScheduleLine(session, timeZone)}
                 </div>
               ))}
             </div>
@@ -308,6 +299,19 @@ if (!hasAccess) {
             })}
           </div>
         )}
+
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <form action={withdrawFromProgram}>
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="programId" value={program.id} />
+            <input
+              type="hidden"
+              name="returnTo"
+              value={`/m/${slug}/programs/${program.id}`}
+            />
+            <SubmitButton pendingText="Withdrawing...">Withdraw from Class</SubmitButton>
+          </form>
+        </div>
       </section>
     </main>
   );

@@ -8,9 +8,18 @@ import {
   getTeacherDashboardStats,
   getAdminDashboardStats,
   getLatestAnnouncementsForPrograms,
+  getProgramsForTeacherInMosque,
+  getStudentProgramApplicationsInMosque,
+  getTeacherProgramApplicationsInMosque,
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 import StudentEnrollmentCard from "@/components/dashboard/StudentEnrollmentCard";
+import TeacherProgramCard from "@/components/dashboard/TeacherProgramCard";
+import {
+  acceptProgramApplication,
+  rejectProgramApplication,
+  joinApprovedFreeProgram,
+} from "@/app/actions/applications";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -46,18 +55,34 @@ export default async function DashboardPage({ params }: PageProps) {
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
 
   const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isLeadTeacher = membership?.role === "lead_teacher";
   const isTeacher = membership?.role === "teacher";
-  const isStudentOnly = !isMosqueAdmin && !isTeacher;
+  const isTeacherLike = isTeacher || isLeadTeacher;
+  const canManagePrograms =
+    isMosqueAdmin || isLeadTeacher || (isTeacher && membership?.can_manage_programs);
+  const isStudentOnly = !isMosqueAdmin && !isTeacherLike;
 
   const enrollments = isStudentOnly
     ? await getEnrollmentsForStudentInMosque(profile.id, mosque.id)
     : [];
 
-  const teacherStats = isTeacher
+  const teachingPrograms = isTeacherLike
+    ? await getProgramsForTeacherInMosque(profile.id, mosque.id)
+    : [];
+
+  const studentApplications = isStudentOnly
+    ? await getStudentProgramApplicationsInMosque(profile.id, mosque.id)
+    : [];
+
+  const teacherApplications = isTeacherLike
+    ? await getTeacherProgramApplicationsInMosque(profile.id, mosque.id)
+    : [];
+
+  const teacherStats = isTeacherLike
     ? await getTeacherDashboardStats(profile.id, mosque.id)
     : null;
 
-  const adminStats = isMosqueAdmin
+  const adminStats = canManagePrograms
     ? await getAdminDashboardStats(mosque.id)
     : null;
 
@@ -71,9 +96,20 @@ export default async function DashboardPage({ params }: PageProps) {
     })
     .filter((programId): programId is string => Boolean(programId));
 
-  const latestAnnouncements = isStudentOnly
-    ? await getLatestAnnouncementsForPrograms(enrolledProgramIds)
+  const teachingProgramIds = teachingPrograms
+    .map((program) => program.id)
+    .filter((programId): programId is string => Boolean(programId));
+
+  const relevantProgramIds = isStudentOnly
+    ? enrolledProgramIds
+    : isTeacherLike
+    ? teachingProgramIds
     : [];
+
+  const latestAnnouncements =
+    isStudentOnly || isTeacherLike
+      ? await getLatestAnnouncementsForPrograms(relevantProgramIds)
+      : [];
 
   const supabase = await createClient();
 
@@ -110,10 +146,10 @@ export default async function DashboardPage({ params }: PageProps) {
         </p>
       </div>
 
-      {isMosqueAdmin ? (
+      {canManagePrograms ? (
         <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
           <div className="space-y-1">
-            <h2 className="text-base font-semibold">Admin</h2>
+            <h2 className="text-base font-semibold">Management</h2>
             <p className="text-sm text-gray-600">
               Manage programs and mosque content.
             </p>
@@ -155,7 +191,7 @@ export default async function DashboardPage({ params }: PageProps) {
             <Link
               href={`/m/${slug}/admin/programs`}
               className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
-              style={{ backgroundColor: "var(--primary-color)" }}
+              style={{ backgroundColor: primaryColor }}
             >
               Manage Programs
             </Link>
@@ -163,55 +199,313 @@ export default async function DashboardPage({ params }: PageProps) {
         </section>
       ) : null}
 
-      {isTeacher ? (
-        <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <div className="space-y-1">
-            <h2 className="text-base font-semibold">Teacher</h2>
-            <p className="text-sm text-gray-600">
-              View the classes assigned to you and the students in them.
-            </p>
-          </div>
-
-          {teacherStats ? (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-gray-200 p-3">
-                <p className="text-sm text-gray-500">Classes</p>
-                <p className="mt-1 text-xl font-semibold">
-                  {teacherStats.class_count}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 p-3">
-                <p className="text-sm text-gray-500">Students</p>
-                <p className="mt-1 text-xl font-semibold">
-                  {teacherStats.student_count}
-                </p>
-              </div>
+      {isTeacherLike ? (
+        <>
+          <section className="mt-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Inbox</h2>
             </div>
-          ) : null}
 
-          <div className="mt-4 space-y-3">
-            <Link
-              href={`/m/${slug}/classes`}
-              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
-              style={{ backgroundColor: primaryColor }}
-            >
-              My Classes
-            </Link>
+            {teacherApplications.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <p className="text-sm text-gray-600">
+                  No student requests right now.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {teacherApplications.map((application) => {
+                  const student = Array.isArray(application.profiles)
+                    ? application.profiles[0]
+                    : application.profiles;
 
-            <Link
-              href={`/m/${slug}/students`}
-              className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
-              style={{ backgroundColor: secondaryColor }}
-            >
-              View Students
-            </Link>
-          </div>
-        </section>
+                  const program = Array.isArray(application.programs)
+                    ? application.programs[0]
+                    : application.programs;
+
+                  if (!program) return null;
+
+                  return (
+                    <details
+                      key={application.id}
+                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                    >
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-semibold text-gray-900">
+                              {student?.full_name || "Student"}
+                            </h3>
+                            <p className="mt-1 text-sm text-gray-600">
+                              Applied to {program.title}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                                application.status === "pending"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : application.status === "accepted"
+                                  ? "bg-green-100 text-green-700"
+                                  : application.status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}
+                            >
+                              {application.status}
+                            </span>
+
+                            <span className="text-sm text-gray-400">›</span>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="mt-4 space-y-2 border-t border-gray-200 pt-4 text-sm text-gray-700">
+                        <p>
+                          <span className="font-medium text-black">Name:</span>{" "}
+                          {student?.full_name || "Unknown"}
+                        </p>
+                        <p>
+                          <span className="font-medium text-black">Email:</span>{" "}
+                          {student?.email || "Not provided"}
+                        </p>
+                        <p>
+                          <span className="font-medium text-black">Phone:</span>{" "}
+                          {student?.phone_number || "Not provided"}
+                        </p>
+                        <p>
+                          <span className="font-medium text-black">Gender:</span>{" "}
+                          {student?.gender === "male"
+                            ? "Brother"
+                            : student?.gender === "female"
+                            ? "Sister"
+                            : "Not provided"}
+                        </p>
+                        <p>
+                          <span className="font-medium text-black">Age:</span>{" "}
+                          {student?.age ?? "Not provided"}
+                        </p>
+
+                        {application.status === "pending" ? (
+                          <div className="mt-4 flex gap-3">
+                            <form action={acceptProgramApplication} className="flex-1">
+                              <input type="hidden" name="slug" value={slug} />
+                              <input
+                                type="hidden"
+                                name="applicationId"
+                                value={application.id}
+                              />
+                              <button
+                                type="submit"
+                                className="w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-medium text-white"
+                              >
+                                Accept
+                              </button>
+                            </form>
+
+                            <form action={rejectProgramApplication} className="flex-1">
+                              <input type="hidden" name="slug" value={slug} />
+                              <input
+                                type="hidden"
+                                name="applicationId"
+                                value={application.id}
+                              />
+                              <button
+                                type="submit"
+                                className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-medium text-white"
+                              >
+                                Reject
+                              </button>
+                            </form>
+                          </div>
+                        ) : null}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold">Teacher</h2>
+              <p className="text-sm text-gray-600">
+                View the classes assigned to you and the students in them.
+              </p>
+            </div>
+
+            {teacherStats ? (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-200 p-3">
+                  <p className="text-sm text-gray-500">Classes</p>
+                  <p className="mt-1 text-xl font-semibold">
+                    {teacherStats.class_count}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-3">
+                  <p className="text-sm text-gray-500">Students</p>
+                  <p className="mt-1 text-xl font-semibold">
+                    {teacherStats.student_count}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 space-y-3">
+              <Link
+                href={`/m/${slug}/classes`}
+                className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+                style={{ backgroundColor: primaryColor }}
+              >
+                My Classes
+              </Link>
+
+              <Link
+                href={`/m/${slug}/students`}
+                className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+                style={{ backgroundColor: secondaryColor }}
+              >
+                View Students
+              </Link>
+            </div>
+          </section>
+
+          <section className="mt-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">My Classes</h2>
+            </div>
+
+            {teachingPrograms.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <p className="text-sm text-gray-600">
+                  You are not assigned to teach any classes.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {teachingPrograms.map((program) => (
+                  <TeacherProgramCard
+                    key={program.id}
+                    slug={slug}
+                    program={{
+                      id: program.id,
+                      title: program.title,
+                      description: program.description ?? null,
+                      schedule: program.schedule ?? [],
+                      schedule_timezone: program.schedule_timezone ?? "America/Edmonton",
+                    }}
+                    latestAnnouncement={
+                      latestAnnouncementByProgramId.get(program.id) ?? null
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
       ) : null}
 
       {isStudentOnly ? (
         <>
+          <section className="mt-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Inbox</h2>
+            </div>
+
+            {studentApplications.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <p className="text-sm text-gray-600">
+                  No notifications.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {studentApplications.map((application) => {
+                  const program = Array.isArray(application.programs)
+                    ? application.programs[0]
+                    : application.programs;
+
+                  if (!program) return null;
+
+                  return (
+                    <div
+                      key={application.id}
+                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold text-gray-900">
+                            {program.title}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600">
+                            {application.status === "pending"
+                              ? "Your application is waiting for teacher review."
+                              : application.status === "rejected"
+                              ? "Your application was not approved."
+                              : application.status === "accepted" && !program.is_paid
+                              ? "You were accepted. You can now join this class."
+                              : application.status === "accepted" && program.is_paid
+                              ? "You were accepted. Complete payment and join class."
+                              : application.status === "joined"
+                              ? "You have joined this class."
+                              : "Application update"}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            application.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : application.status === "accepted"
+                              ? "bg-green-100 text-green-700"
+                              : application.status === "rejected"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {application.status}
+                        </span>
+                      </div>
+
+                      {application.status === "accepted" && !program.is_paid ? (
+                        <form action={joinApprovedFreeProgram} className="mt-4">
+                          <input type="hidden" name="slug" value={slug} />
+                          <input type="hidden" name="programId" value={program.id} />
+                          <button
+                            type="submit"
+                            className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white"
+                            style={{ backgroundColor: primaryColor }}
+                          >
+                            Join Class
+                          </button>
+                        </form>
+                      ) : null}
+
+                      {application.status === "accepted" && program.is_paid ? (
+                        <div className="mt-4 space-y-3">
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-800">
+                            Stripe checkout is not connected yet.
+                          </div>
+
+                          <Link
+                            href={`/m/${slug}/programs/${program.id}`}
+                            className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+                            style={{ backgroundColor: primaryColor }}
+                          >
+                            Complete Payment and Join Class
+                          </Link>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           <section className="mt-8">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">My Enrollments</h2>
@@ -220,7 +514,7 @@ export default async function DashboardPage({ params }: PageProps) {
             {enrollments.length === 0 ? (
               <div className="rounded-xl border border-gray-200 p-4">
                 <p className="text-sm text-gray-600">
-                  You are not enrolled in any programs here yet.
+                  You are not enrolled in any programs.
                 </p>
               </div>
             ) : (
@@ -240,10 +534,9 @@ export default async function DashboardPage({ params }: PageProps) {
                         id: program.id,
                         title: program.title,
                         description: program.description ?? null,
-                        schedule_days: program.schedule_days ?? [],
-                        schedule_start_time: program.schedule_start_time ?? null,
-                        schedule_end_time: program.schedule_end_time ?? null,
-                        schedule_timezone: program.schedule_timezone ?? "America/Edmonton",
+                        schedule: program.schedule ?? [],
+                        schedule_timezone:
+                          program.schedule_timezone ?? "America/Edmonton",
                       }}
                       latestAnnouncement={
                         latestAnnouncementByProgramId.get(program.id) ?? null
@@ -259,7 +552,7 @@ export default async function DashboardPage({ params }: PageProps) {
             <Link
               href={`/m/${slug}/classes`}
               className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
-              style={{ backgroundColor: "var(--primary-color)" }}
+              style={{ backgroundColor: primaryColor }}
             >
               Go to My Classes
             </Link>
@@ -267,7 +560,7 @@ export default async function DashboardPage({ params }: PageProps) {
             <Link
               href={`/m/${slug}/programs`}
               className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
-              style={{ backgroundColor: "var(--secondary-color)" }}
+              style={{ backgroundColor: secondaryColor }}
             >
               Explore More Programs
             </Link>

@@ -1,4 +1,24 @@
-const DAY_ORDER = [
+export type ProgramScheduleDay =
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
+
+export type ProgramScheduleSlot = {
+  day: ProgramScheduleDay;
+  start: string;
+  end: string;
+};
+
+export type UpcomingScheduleSession = {
+  date: Date;
+  slot: ProgramScheduleSlot;
+};
+
+const DAY_ORDER: ProgramScheduleDay[] = [
   "sunday",
   "monday",
   "tuesday",
@@ -6,9 +26,9 @@ const DAY_ORDER = [
   "thursday",
   "friday",
   "saturday",
-] as const;
+];
 
-const DAY_LABELS_SHORT: Record<string, string> = {
+const DAY_LABELS_SHORT: Record<ProgramScheduleDay, string> = {
   sunday: "Sun",
   monday: "Mon",
   tuesday: "Tue",
@@ -30,6 +50,7 @@ const WEEKDAY_INDEX_BY_SHORT: Record<string, number> = {
 
 function parseTimeParts(timeValue: string) {
   const [hours, minutes] = timeValue.split(":").map(Number);
+
   return {
     hours,
     minutes,
@@ -78,21 +99,43 @@ function getZonedNowParts(timeZone: string) {
   };
 }
 
-export function normalizeScheduleDays(days: unknown) {
-  if (!Array.isArray(days)) {
+function isValidDay(day: string): day is ProgramScheduleDay {
+  return DAY_ORDER.includes(day as ProgramScheduleDay);
+}
+
+function isValidTimeValue(timeValue: string) {
+  return /^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/.test(timeValue);
+}
+
+export function normalizeProgramSchedule(value: unknown): ProgramScheduleSlot[] {
+  if (!Array.isArray(value)) {
     return [];
   }
 
-  return days
-    .map((day) => String(day).toLowerCase().trim())
-    .filter((day): day is (typeof DAY_ORDER)[number] => DAY_ORDER.includes(day as (typeof DAY_ORDER)[number]));
+  const safeSlots: ProgramScheduleSlot[] = [];
+
+  for (const item of value) {
+    const day = String((item as { day?: unknown })?.day ?? "")
+      .trim()
+      .toLowerCase();
+    const start = String((item as { start?: unknown })?.start ?? "").trim();
+    const end = String((item as { end?: unknown })?.end ?? "").trim();
+
+    if (!isValidDay(day) || !isValidTimeValue(start) || !isValidTimeValue(end)) {
+      continue;
+    }
+
+    safeSlots.push({ day, start, end });
+  }
+
+  return safeSlots.sort(
+    (a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day)
+  );
 }
 
-export function formatWeekdayList(days: string[]) {
-  const normalizedDays = DAY_ORDER.filter((day) => days.includes(day));
-  return normalizedDays.map((day) => DAY_LABELS_SHORT[day]).join("/");
+export function formatWeekdayLabel(day: ProgramScheduleDay) {
+  return DAY_LABELS_SHORT[day];
 }
-
 export function formatTimeRange(
   startTime: string | null,
   endTime: string | null,
@@ -133,6 +176,26 @@ export function formatSingleTime(timeValue: string | null, timeZone: string) {
   }).format(date);
 }
 
+export function formatProgramScheduleSummary(
+  schedule: ProgramScheduleSlot[],
+  timeZone: string
+) {
+  if (schedule.length === 0) {
+    return "Schedule not set yet";
+  }
+
+  return schedule
+    .map(
+      (slot) =>
+        `${formatWeekdayLabel(slot.day)} ${formatTimeRange(
+          slot.start,
+          slot.end,
+          timeZone
+        )}`
+    )
+    .join(" · ");
+}
+
 export function toDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -140,38 +203,53 @@ export function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-export function getUpcomingClassDates(
-  scheduleDays: string[],
+export function getUpcomingScheduleSessions(
+  schedule: ProgramScheduleSlot[],
   count: number,
   timeZone: string
-) {
-  const validDayIndexes = new Set(
-    scheduleDays
-      .map((day) => DAY_ORDER.indexOf(day as (typeof DAY_ORDER)[number]))
-      .filter((index) => index >= 0)
-  );
-
-  if (validDayIndexes.size === 0) {
+): UpcomingScheduleSession[] {
+  if (schedule.length === 0) {
     return [];
   }
 
   const zonedNow = getZonedNowParts(timeZone);
   const baseDate = new Date(zonedNow.year, zonedNow.month - 1, zonedNow.day);
-  const upcomingDates: Date[] = [];
+  const upcomingSessions: UpcomingScheduleSession[] = [];
 
-  for (let offset = 0; offset < 60 && upcomingDates.length < count; offset += 1) {
-    const candidate = new Date(baseDate);
-    candidate.setDate(baseDate.getDate() + offset);
+  for (let offset = 0; offset < 60 && upcomingSessions.length < count; offset += 1) {
+    const candidateDate = new Date(baseDate);
+    candidateDate.setDate(baseDate.getDate() + offset);
 
-    const candidateWeekday =
-      offset === 0 ? zonedNow.weekdayIndex : candidate.getDay();
+    const weekdayIndex = offset === 0 ? zonedNow.weekdayIndex : candidateDate.getDay();
 
-    if (validDayIndexes.has(candidateWeekday)) {
-      upcomingDates.push(candidate);
+    const matchingSlots = schedule.filter(
+      (slot) =>
+        DAY_ORDER.indexOf(slot.day as (typeof DAY_ORDER)[number]) === weekdayIndex
+    );
+
+    for (const slot of matchingSlots) {
+      const slotEndMinutes = parseTimeToMinutes(slot.end);
+
+      if (
+        offset === 0 &&
+        slotEndMinutes !== null &&
+        zonedNow.minutesOfDay >= slotEndMinutes
+      ) {
+        continue;
+      }
+
+      upcomingSessions.push({
+        date: candidateDate,
+        slot,
+      });
+
+      if (upcomingSessions.length >= count) {
+        break;
+      }
     }
   }
 
-  return upcomingDates;
+  return upcomingSessions;
 }
 
 export function buildCalendarDaysForCurrentMonth(timeZone: string) {
@@ -189,7 +267,10 @@ export function buildCalendarDaysForCurrentMonth(timeZone: string) {
   }
 
   for (let day = 1; day <= totalDays; day += 1) {
-    cells.push({ type: "day", date: new Date(zonedNow.year, zonedNow.month - 1, day) });
+    cells.push({
+      type: "day",
+      date: new Date(zonedNow.year, zonedNow.month - 1, day),
+    });
   }
 
   return {
@@ -201,80 +282,55 @@ export function buildCalendarDaysForCurrentMonth(timeZone: string) {
   };
 }
 
-export function formatUpcomingClassLine(
-  date: Date,
-  startTime: string | null,
-  endTime: string | null,
+export function formatUpcomingScheduleLine(
+  session: UpcomingScheduleSession,
   timeZone: string
 ) {
   const dateLabel = new Intl.DateTimeFormat("en-CA", {
     weekday: "short",
     month: "short",
     day: "numeric",
-  }).format(date);
+  }).format(session.date);
 
-  return `${dateLabel} · ${formatTimeRange(startTime, endTime, timeZone)}`;
+  return `${dateLabel} · ${formatTimeRange(
+    session.slot.start,
+    session.slot.end,
+    timeZone
+  )}`;
 }
 
-export function getNextClassSessionLabel(
-  scheduleDays: string[],
-  startTime: string | null,
-  endTime: string | null,
+export function getNextScheduleSessionLabel(
+  schedule: ProgramScheduleSlot[],
   timeZone: string
 ) {
-  if (!startTime) {
-    return null;
-  }
+  const nextSession = getUpcomingScheduleSessions(schedule, 1, timeZone)[0];
 
-  const validDayIndexes = new Set(
-    scheduleDays
-      .map((day) => DAY_ORDER.indexOf(day as (typeof DAY_ORDER)[number]))
-      .filter((index) => index >= 0)
-  );
-
-  if (validDayIndexes.size === 0) {
+  if (!nextSession) {
     return null;
   }
 
   const zonedNow = getZonedNowParts(timeZone);
-  const endMinutes = parseTimeToMinutes(endTime);
-  const baseDate = new Date(zonedNow.year, zonedNow.month - 1, zonedNow.day);
+  const today = new Date(zonedNow.year, zonedNow.month - 1, zonedNow.day);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
 
-  for (let offset = 0; offset < 14; offset += 1) {
-    const weekdayIndex = (zonedNow.weekdayIndex + offset) % 7;
+  const sessionDateKey = toDateKey(nextSession.date);
+  const todayKey = toDateKey(today);
+  const tomorrowKey = toDateKey(tomorrow);
+  const sessionTimeLabel = formatSingleTime(nextSession.slot.start, timeZone);
 
-    if (!validDayIndexes.has(weekdayIndex)) {
-      continue;
-    }
-
-    if (
-      offset === 0 &&
-      endMinutes !== null &&
-      zonedNow.minutesOfDay >= endMinutes
-    ) {
-      continue;
-    }
-
-    const sessionDate = new Date(baseDate);
-    sessionDate.setDate(baseDate.getDate() + offset);
-
-    const sessionTimeLabel = formatSingleTime(startTime, timeZone);
-
-    if (offset === 0) {
-      return `Today @ ${sessionTimeLabel}`;
-    }
-
-    if (offset === 1) {
-      return `Tomorrow @ ${sessionTimeLabel}`;
-    }
-
-    const dateLabel = new Intl.DateTimeFormat("en-CA", {
-      month: "short",
-      day: "numeric",
-    }).format(sessionDate);
-
-    return `${dateLabel} @ ${sessionTimeLabel}`;
+  if (sessionDateKey === todayKey) {
+    return `Today @ ${sessionTimeLabel}`;
   }
 
-  return null;
+  if (sessionDateKey === tomorrowKey) {
+    return `Tomorrow @ ${sessionTimeLabel}`;
+  }
+
+  const dateLabel = new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+  }).format(nextSession.date);
+
+  return `${dateLabel} @ ${sessionTimeLabel}`;
 }

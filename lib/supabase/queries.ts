@@ -17,13 +17,10 @@ export async function getMosqueBySlug(slug: string) {
   return data;
 }
 
-// Loads all programs for one mosque
 // Loads all active programs for one mosque, including basic teacher details
 export async function getProgramsByMosqueId(mosqueId: string) {
   const supabase = await createClient();
 
-  // Load active programs for a single mosque and join the assigned teacher profile.
-  // Include billing-ready fields so the app can distinguish free vs paid programs.
   const { data, error } = await supabase
     .from("programs")
     .select(`
@@ -38,6 +35,8 @@ export async function getProgramsByMosqueId(mosqueId: string) {
       price_monthly_cents,
       stripe_product_id,
       stripe_price_id,
+      audience_gender,
+      age_range_text,
       created_at,
       updated_at,
       teacher:profiles!programs_teacher_profile_id_fkey (
@@ -71,6 +70,8 @@ export async function getProgramsByMosqueId(mosqueId: string) {
       price_monthly_cents: program.price_monthly_cents ?? null,
       stripe_product_id: program.stripe_product_id ?? null,
       stripe_price_id: program.stripe_price_id ?? null,
+      audience_gender: program.audience_gender ?? null,
+      age_range_text: program.age_range_text ?? null,
       created_at: program.created_at,
       updated_at: program.updated_at,
       teacher_name: teacher?.full_name ?? null,
@@ -78,15 +79,13 @@ export async function getProgramsByMosqueId(mosqueId: string) {
     };
   });
 }
+
 export async function getProgramByIdForMosque(
   programId: string,
   mosqueId: string
 ) {
   const supabase = await createClient();
 
-  // Load one active public program for this mosque along with the assigned teacher's
-  // basic contact info and the recurring weekly schedule fields needed for the student view.
-  // Include billing-ready fields so the app can distinguish free vs paid programs.
   const { data, error } = await supabase
     .from("programs")
     .select(`
@@ -101,9 +100,9 @@ export async function getProgramByIdForMosque(
       price_monthly_cents,
       stripe_product_id,
       stripe_price_id,
-      schedule_days,
-      schedule_start_time,
-      schedule_end_time,
+      audience_gender,
+      age_range_text,
+      schedule,
       schedule_timezone,
       schedule_notes,
       created_at,
@@ -142,9 +141,9 @@ export async function getProgramByIdForMosque(
     price_monthly_cents: data.price_monthly_cents ?? null,
     stripe_product_id: data.stripe_product_id ?? null,
     stripe_price_id: data.stripe_price_id ?? null,
-    schedule_days: data.schedule_days ?? [],
-    schedule_start_time: data.schedule_start_time ?? null,
-    schedule_end_time: data.schedule_end_time ?? null,
+    audience_gender: data.audience_gender ?? null,
+    age_range_text: data.age_range_text ?? null,
+    schedule: Array.isArray(data.schedule) ? data.schedule : [],
     schedule_timezone: data.schedule_timezone ?? "America/Edmonton",
     schedule_notes: data.schedule_notes ?? null,
     created_at: data.created_at,
@@ -155,12 +154,9 @@ export async function getProgramByIdForMosque(
   };
 }
 
-
-
 export async function getProfileForCurrentUser() {
   const supabase = await createClient();
 
-  // Get the currently authenticated Supabase user
   const {
     data: { user },
     error: userError,
@@ -170,7 +166,6 @@ export async function getProfileForCurrentUser() {
     return null;
   }
 
-  // Load the profile row linked to the authenticated user
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -190,7 +185,6 @@ export async function getEnrollmentForStudent(
 ) {
   const supabase = await createClient();
 
-  // Check whether this student is already enrolled in this program
   const { data, error } = await supabase
     .from("enrollments")
     .select("*")
@@ -222,9 +216,7 @@ export async function getEnrollmentsForStudentInMosque(
         title,
         description,
         is_active,
-        schedule_days,
-        schedule_start_time,
-        schedule_end_time,
+        schedule,
         schedule_timezone
       )
     `)
@@ -250,9 +242,7 @@ export async function getEnrollmentsForStudentInMosque(
             title: rawProgram.title,
             description: rawProgram.description,
             is_active: rawProgram.is_active,
-            schedule_days: rawProgram.schedule_days ?? [],
-            schedule_start_time: rawProgram.schedule_start_time ?? null,
-            schedule_end_time: rawProgram.schedule_end_time ?? null,
+            schedule: Array.isArray(rawProgram.schedule) ? rawProgram.schedule : [],
             schedule_timezone:
               rawProgram.schedule_timezone ?? "America/Edmonton",
           }
@@ -267,7 +257,6 @@ export async function getMosqueMembershipForUser(
 ) {
   const supabase = await createClient();
 
-  // Load the current user's internal membership for this mosque
   const { data, error } = await supabase
     .from("mosque_memberships")
     .select("*")
@@ -285,7 +274,6 @@ export async function getMosqueMembershipForUser(
 export async function getProgramsByMosqueIdIncludingInactive(mosqueId: string) {
   const supabase = await createClient();
 
-  // Load all programs for this mosque, including inactive ones, for admin management
   const { data, error } = await supabase
     .from("programs")
     .select("*")
@@ -305,7 +293,6 @@ export async function getProgramByIdIncludingInactiveForMosque(
 ) {
   const supabase = await createClient();
 
-  // Load a single program for this mosque, including inactive ones, for admin editing.
   const { data, error } = await supabase
     .from("programs")
     .select("*")
@@ -326,10 +313,18 @@ export async function getProgramsForTeacherInMosque(
 ) {
   const supabase = await createClient();
 
-  // Load all programs in this mosque that are assigned to the current teacher.
   const { data, error } = await supabase
     .from("programs")
-    .select("*")
+    .select(`
+      id,
+      mosque_id,
+      teacher_profile_id,
+      title,
+      description,
+      is_active,
+      schedule,
+      schedule_timezone
+    `)
     .eq("mosque_id", mosqueId)
     .eq("teacher_profile_id", teacherProfileId)
     .order("title", { ascending: true });
@@ -338,22 +333,21 @@ export async function getProgramsForTeacherInMosque(
     throw new Error(`Failed to load teacher programs: ${error.message}`);
   }
 
-  return data ?? [];
+  return (data ?? []).map((program) => ({
+    ...program,
+    schedule: Array.isArray(program.schedule) ? program.schedule : [],
+    schedule_timezone: program.schedule_timezone ?? "America/Edmonton",
+  }));
 }
 
 export async function getTeachersForMosque(mosqueId: string) {
   const supabase = await createClient();
 
-  // First load the teacher membership rows for this mosque.
   const { data: memberships, error: membershipsError } = await supabase
     .from("mosque_memberships")
     .select("id, mosque_id, profile_id, role")
     .eq("mosque_id", mosqueId)
-    .eq("role", "teacher");
-
-  console.log("getTeachersForMosque mosqueId:", mosqueId); // Debug: confirm the mosque id being queried.
-  console.log("getTeachersForMosque memberships:", memberships); // Debug: confirm teacher memberships are found.
-  console.log("getTeachersForMosque membershipsError:", membershipsError); // Debug: surface membership query issues.
+    .in("role", ["teacher", "lead_teacher"]);
 
   if (membershipsError) {
     throw new Error(`Failed to load teacher memberships: ${membershipsError.message}`);
@@ -363,18 +357,12 @@ export async function getTeachersForMosque(mosqueId: string) {
     return [];
   }
 
-  const profileIds = memberships.map((membership) => membership.profile_id); // Collect all teacher profile ids for the profile lookup.
+  const profileIds = [...new Set(memberships.map((membership) => membership.profile_id))];
 
-  console.log("getTeachersForMosque profileIds:", profileIds); // Debug: confirm which profile ids we are loading.
-
-  // Then load the matching profile rows.
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
     .select("id, full_name")
     .in("id", profileIds);
-
-  console.log("getTeachersForMosque profiles:", profiles); // Debug: inspect the returned profile rows.
-  console.log("getTeachersForMosque profilesError:", profilesError); // Debug: surface profile query issues.
 
   if (profilesError) {
     throw new Error(`Failed to load teacher profiles: ${profilesError.message}`);
@@ -385,11 +373,9 @@ export async function getTeachersForMosque(mosqueId: string) {
 
     return {
       profile_id: profileId,
-      full_name: profile?.full_name ?? null, // Carry the readable teacher name if the profile row was returned.
+      full_name: profile?.full_name ?? null,
     };
   });
-
-  console.log("getTeachersForMosque teachers:", teachers); // Debug: confirm the final teacher objects going to the page.
 
   return teachers;
 }
@@ -400,8 +386,6 @@ export async function getEnrollmentsForTeacherProgramsInMosque(
 ) {
   const supabase = await createClient();
 
-  // Load enrollments for all programs in this mosque that are assigned to the current teacher,
-  // and include the enrolled student's basic profile plus the program title for display.
   const { data, error } = await supabase
     .from("enrollments")
     .select(`
@@ -437,8 +421,6 @@ export async function getTeacherProgramByIdInMosque(
 ) {
   const supabase = await createClient();
 
-  // Load a single program only if it belongs to this mosque
-  // and is assigned to the current teacher.
   const { data, error } = await supabase
     .from("programs")
     .select("*")
@@ -461,8 +443,6 @@ export async function getEnrollmentsForProgramInTeacherView(
 ) {
   const supabase = await createClient();
 
-  // Load enrolled students for one teacher-owned program by joining the student profile
-  // and confirming the program belongs to this mosque and teacher.
   const { data, error } = await supabase
     .from("enrollments")
     .select(`
@@ -496,7 +476,6 @@ export async function getEnrollmentsForProgramInTeacherView(
 export async function getProfileById(profileId: string) {
   const supabase = await createClient();
 
-  // Load one profile row by id so admin/teacher pages can show a readable name.
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name")
@@ -516,7 +495,6 @@ export async function getEnrollmentsForProgramInAdminView(
 ) {
   const supabase = await createClient();
 
-  // Load all enrollments for one mosque program and include each enrolled student's profile.
   const { data, error } = await supabase
     .from("enrollments")
     .select(`
@@ -548,7 +526,6 @@ export async function getEnrollmentsForProgramInAdminView(
 export async function getAdminProgramCardsByMosqueId(mosqueId: string) {
   const supabase = await createClient();
 
-  // Load all programs for this mosque so admin cards can show every program, including inactive ones.
   const { data: programs, error: programsError } = await supabase
     .from("programs")
     .select("*")
@@ -559,21 +536,21 @@ export async function getAdminProgramCardsByMosqueId(mosqueId: string) {
     throw new Error(`Failed to load admin program cards: ${programsError.message}`);
   }
 
-  const safePrograms = programs ?? []; // Normalize to an empty array so later mapping logic stays simple.
+  const safePrograms = programs ?? [];
 
   if (safePrograms.length === 0) {
-    return []; // Return early if this mosque has no programs yet.
+    return [];
   }
 
   const teacherProfileIds = Array.from(
     new Set(
       safePrograms
-        .map((program) => program.teacher_profile_id) // Collect all assigned teacher ids from the mosque's programs.
-        .filter((profileId): profileId is string => Boolean(profileId)) // Remove null teacher assignments before querying profiles.
+        .map((program) => program.teacher_profile_id)
+        .filter((profileId): profileId is string => Boolean(profileId))
     )
   );
 
-  const programIds = safePrograms.map((program) => program.id); // Collect all program ids so we can count enrollments for each one.
+  const programIds = safePrograms.map((program) => program.id);
 
   const { data: teacherProfiles, error: teacherProfilesError } =
     teacherProfileIds.length === 0
@@ -603,23 +580,23 @@ export async function getAdminProgramCardsByMosqueId(mosqueId: string) {
   const teacherNameById = new Map(
     (teacherProfiles ?? []).map((profile) => [
       profile.id,
-      profile.full_name?.trim() || null, // Keep a readable teacher name when available.
+      profile.full_name?.trim() || null,
     ])
   );
 
-  const enrollmentCountByProgramId = new Map<string, number>(); // Track how many students are enrolled in each program.
+  const enrollmentCountByProgramId = new Map<string, number>();
 
   for (const enrollment of enrollments ?? []) {
-    const currentCount = enrollmentCountByProgramId.get(enrollment.program_id) ?? 0; // Read the current count for this program, defaulting to zero.
-    enrollmentCountByProgramId.set(enrollment.program_id, currentCount + 1); // Increment the program's enrolled student count.
+    const currentCount = enrollmentCountByProgramId.get(enrollment.program_id) ?? 0;
+    enrollmentCountByProgramId.set(enrollment.program_id, currentCount + 1);
   }
 
   return safePrograms.map((program) => ({
     ...program,
     teacher_name: program.teacher_profile_id
-      ? teacherNameById.get(program.teacher_profile_id) ?? null // Attach the teacher's readable name when the program is assigned.
+      ? teacherNameById.get(program.teacher_profile_id) ?? null
       : null,
-    enrolled_student_count: enrollmentCountByProgramId.get(program.id) ?? 0, // Attach the total enrolled student count for the card.
+    enrolled_student_count: enrollmentCountByProgramId.get(program.id) ?? 0,
   }));
 }
 
@@ -629,7 +606,6 @@ export async function getTeacherDashboardStats(
 ) {
   const supabase = await createClient();
 
-  // Load all programs assigned to this teacher in the current mosque so we can count classes.
   const { data: programs, error: programsError } = await supabase
     .from("programs")
     .select("id")
@@ -640,8 +616,8 @@ export async function getTeacherDashboardStats(
     throw new Error(`Failed to load teacher dashboard programs: ${programsError.message}`);
   }
 
-  const safePrograms = programs ?? []; // Normalize to an empty array so counting logic stays simple.
-  const classCount = safePrograms.length; // Count how many classes are assigned to this teacher.
+  const safePrograms = programs ?? [];
+  const classCount = safePrograms.length;
 
   if (classCount === 0) {
     return {
@@ -650,7 +626,7 @@ export async function getTeacherDashboardStats(
     };
   }
 
-  const programIds = safePrograms.map((program) => program.id); // Collect program ids so we can count students across them.
+  const programIds = safePrograms.map((program) => program.id);
 
   const { data: enrollments, error: enrollmentsError } = await supabase
     .from("enrollments")
@@ -663,14 +639,13 @@ export async function getTeacherDashboardStats(
 
   return {
     class_count: classCount,
-    student_count: (enrollments ?? []).length, // Count all student enrollments across this teacher's assigned programs.
+    student_count: (enrollments ?? []).length,
   };
 }
 
 export async function getAdminDashboardStats(mosqueId: string) {
   const supabase = await createClient();
 
-  // Load all programs for this mosque so we can compute basic program counts.
   const { data: programs, error: programsError } = await supabase
     .from("programs")
     .select("id, is_active")
@@ -680,22 +655,21 @@ export async function getAdminDashboardStats(mosqueId: string) {
     throw new Error(`Failed to load admin dashboard programs: ${programsError.message}`);
   }
 
-  const safePrograms = programs ?? []; // Normalize to an empty array for safe counting.
-  const totalPrograms = safePrograms.length; // Count every program in this mosque.
-  const activePrograms = safePrograms.filter((program) => program.is_active).length; // Count active programs only.
+  const safePrograms = programs ?? [];
+  const totalPrograms = safePrograms.length;
+  const activePrograms = safePrograms.filter((program) => program.is_active).length;
 
-  // Load teacher memberships for this mosque so the dashboard can show staffing count.
   const { data: teacherMemberships, error: teacherMembershipsError } = await supabase
     .from("mosque_memberships")
     .select("id")
     .eq("mosque_id", mosqueId)
-    .eq("role", "teacher");
+    .in("role", ["teacher", "lead_teacher"]);
 
   if (teacherMembershipsError) {
     throw new Error(`Failed to load admin dashboard teachers: ${teacherMembershipsError.message}`);
   }
 
-  const programIds = safePrograms.map((program) => program.id); // Collect all mosque program ids so we can count enrollments.
+  const programIds = safePrograms.map((program) => program.id);
 
   const { data: enrollments, error: enrollmentsError } =
     programIds.length === 0
@@ -712,15 +686,14 @@ export async function getAdminDashboardStats(mosqueId: string) {
   return {
     total_program_count: totalPrograms,
     active_program_count: activePrograms,
-    teacher_count: (teacherMemberships ?? []).length, // Count teachers assigned to this mosque through memberships.
-    student_count: (enrollments ?? []).length, // Count total enrollments across all mosque programs.
+    teacher_count: (teacherMemberships ?? []).length,
+    student_count: (enrollments ?? []).length,
   };
 }
 
 export async function getAnnouncementsForProgram(programId: string) {
   const supabase = await createClient();
 
-  // Load all announcements for one program along with the posting teacher's basic profile info.
   const { data, error } = await supabase
     .from("program_announcements")
     .select(`
@@ -748,7 +721,6 @@ export async function getAnnouncementsForProgram(programId: string) {
 export async function getTeacherAnnouncementAuthorProfile(profileId: string) {
   const supabase = await createClient();
 
-  // Load the current teacher's basic profile info for the announcement composer preview.
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url")
@@ -771,8 +743,7 @@ export async function getAllMosques() {
     .order("name", { ascending: true });
 
   if (error) {
-    console.error("Error loading mosques:", error);
-    return [];
+    throw new Error(`Failed to load mosques: ${error.message}`);
   }
 
   return data ?? [];
@@ -843,4 +814,99 @@ export async function hasActiveProgramSubscription(
 ) {
   const subscription = await getProgramSubscriptionForStudent(profileId, programId);
   return subscription?.status === "active";
+}
+
+export async function getProgramApplicationForStudent(
+  profileId: string,
+  programId: string
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("program_applications")
+    .select("*")
+    .eq("student_profile_id", profileId)
+    .eq("program_id", programId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load program application: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getStudentProgramApplicationsInMosque(
+  profileId: string,
+  mosqueId: string
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("program_applications")
+    .select(`
+      id,
+      status,
+      created_at,
+      reviewed_at,
+      joined_at,
+      program_id,
+      programs!inner (
+        id,
+        mosque_id,
+        title,
+        is_paid
+      )
+    `)
+    .eq("student_profile_id", profileId)
+    .eq("programs.mosque_id", mosqueId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load student applications: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+export async function getTeacherProgramApplicationsInMosque(
+  teacherProfileId: string,
+  mosqueId: string
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("program_applications")
+    .select(`
+      id,
+      status,
+      created_at,
+      reviewed_at,
+      joined_at,
+      student_profile_id,
+      programs!inner (
+        id,
+        mosque_id,
+        title,
+        teacher_profile_id,
+        is_paid
+      ),
+      profiles!program_applications_student_profile_id_fkey (
+        id,
+        full_name,
+        email,
+        phone_number,
+        gender,
+        age
+      )
+    `)
+    .eq("programs.mosque_id", mosqueId)
+    .eq("programs.teacher_profile_id", teacherProfileId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load teacher applications: ${error.message}`);
+  }
+
+  return data ?? [];
 }

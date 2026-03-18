@@ -35,9 +35,14 @@ export default async function AdminProgramsPage({
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Check this user's internal role for the current mosque.
 
-  if (!membership || membership.role !== "mosque_admin") {
-    notFound(); // Hide admin routes from non-admin users instead of exposing a visible authorization error.
-  }
+ const isMosqueAdmin = membership?.role === "mosque_admin";
+const isTeacher = membership?.role === "teacher";
+const canManagePrograms =
+  isMosqueAdmin || (isTeacher && membership?.can_manage_programs);
+
+if (!canManagePrograms) {
+  notFound();
+}
 
   const programs = await getAdminProgramCardsByMosqueId(mosque.id); // Load admin-ready program card data including teacher names and enrolled student counts.
 

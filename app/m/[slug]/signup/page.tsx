@@ -16,10 +16,10 @@ export default async function TenantSignupPage({
   params,
   searchParams,
 }: TenantSignupPageProps) {
-  const { slug } = await params; // Unwrap the async route params before using the slug.
-  const resolvedSearchParams = await searchParams; // Unwrap the async search params before reading query values.
-  const mosque = await getMosqueBySlug(slug); // Load the tenant mosque from the slug.
-  const error = resolvedSearchParams.error; // Read the error message from the query string if present.
+  const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
+  const mosque = await getMosqueBySlug(slug);
+  const error = resolvedSearchParams.error;
 
   return (
     <section className="flex min-h-[70vh] items-center">
@@ -68,21 +68,53 @@ export default async function TenantSignupPage({
               className="w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
             />
           </div>
+
           <div>
-  <label
-    htmlFor="phone_number"
-    className="mb-1.5 block text-sm font-medium"
-  >
-    Phone number
-  </label>
-  <input
-    id="phone_number"
-    name="phone_number"
-    type="tel"
-    required
-    className="w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
-  />
-</div>
+            <label
+              htmlFor="phone_number"
+              className="mb-1.5 block text-sm font-medium"
+            >
+              Phone number
+            </label>
+            <input
+              id="phone_number"
+              name="phone_number"
+              type="tel"
+              required
+              className="w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="age" className="mb-1.5 block text-sm font-medium">
+              Age
+            </label>
+            <input
+              id="age"
+              name="age"
+              type="number"
+              min="1"
+              required
+              className="w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="gender" className="mb-1.5 block text-sm font-medium">
+              Gender
+            </label>
+            <select
+              id="gender"
+              name="gender"
+              required
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 outline-none focus:border-black"
+            >
+              <option value="">Select gender</option>
+              <option value="male">Male</option>
+<option value="female">Female</option>
+            </select>
+          </div>
+
           <div>
             <label
               htmlFor="password"
@@ -99,12 +131,6 @@ export default async function TenantSignupPage({
             />
           </div>
 
-          {/* <button
-            type="submit"
-            className="w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
-          >
-            Sign up
-          </button> */}
           <SubmitButton pendingText="Signing Up...">Sign Up</SubmitButton>
         </form>
 

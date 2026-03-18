@@ -8,6 +8,7 @@ import {
   getTeachersForMosque,
 } from "@/lib/supabase/queries";
 import SubmitButton from "@/components/ui/SubmitButton";
+import ProgramScheduleEditor from "@/components/programs/ProgramScheduleEditor";
 
 type NewProgramPageProps = {
   params: Promise<{
@@ -36,9 +37,14 @@ export default async function NewProgramPage({
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped membership.
 
-  if (!membership || membership.role !== "mosque_admin") {
-    notFound(); // Hide admin routes from non-admin users.
-  }
+  const isMosqueAdmin = membership?.role === "mosque_admin";
+const isTeacher = membership?.role === "teacher";
+const canManagePrograms =
+  isMosqueAdmin || (isTeacher && membership?.can_manage_programs);
+
+if (!canManagePrograms) {
+  notFound();
+}
 
   const teachers = await getTeachersForMosque(mosque.id); // Load teacher options for this mosque so the admin can assign one during program creation.
 
@@ -110,6 +116,8 @@ export default async function NewProgramPage({
             Choose a teacher from this mosque, or leave the program unassigned.
           </p>
         </div>
+
+        <ProgramScheduleEditor />
 
         <label className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-3">
           <input

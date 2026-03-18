@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 export async function updateProfile(formData: FormData) {
   const slug = String(formData.get("slug") ?? "").trim();
   const fullName = String(formData.get("fullName") ?? "").trim();
+  const phoneNumber = String(formData.get("phoneNumber") ?? "").trim();
+  const age = Number(formData.get("age") ?? 0);
+  const gender = String(formData.get("gender") ?? "").trim();
   const avatar = formData.get("avatar");
 
   if (!slug) {
@@ -14,6 +17,18 @@ export async function updateProfile(formData: FormData) {
 
   if (fullName.length < 2) {
     return { error: "Name must be at least 2 characters." };
+  }
+
+  if (!phoneNumber) {
+    return { error: "Phone number is required." };
+  }
+
+  if (!age || age < 1) {
+    return { error: "Valid age is required." };
+  }
+
+  if (!gender) {
+    return { error: "Gender is required." };
   }
 
   const supabase = await createClient();
@@ -70,9 +85,15 @@ export async function updateProfile(formData: FormData) {
 
   const updates: {
     full_name: string;
+    phone_number: string;
+    age: number;
+    gender: string;
     avatar_url?: string;
   } = {
     full_name: fullName,
+    phone_number: phoneNumber,
+    age,
+    gender,
   };
 
   if (nextAvatarPath) {
@@ -93,6 +114,7 @@ export async function updateProfile(formData: FormData) {
   revalidatePath(`/m/${slug}/programs`);
   revalidatePath(`/m/${slug}/classes`);
   revalidatePath(`/m/${slug}/students`);
+  revalidatePath(`/m/${slug}/dashboard`);
 
   return { success: true };
 }

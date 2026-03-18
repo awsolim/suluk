@@ -10,6 +10,9 @@ type EditProfileFormProps = {
   initialName: string;
   initialAvatarSrc: string;
   primaryColor: string;
+  initialPhoneNumber?: string | null;
+  initialAge?: number | null;
+  initialGender?: string | null;
 };
 
 function createImage(url: string): Promise<HTMLImageElement> {
@@ -69,14 +72,20 @@ export default function EditProfileForm({
   initialName,
   initialAvatarSrc,
   primaryColor,
+  initialPhoneNumber,
+  initialAge,
+  initialGender,
 }: EditProfileFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [fullName, setFullName] = useState(initialName);
+  const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber || "");
+  const [age, setAge] = useState(initialAge ? String(initialAge) : "");
+  const [gender, setGender] = useState(initialGender || "");
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
-  const [avatarPreviewSrc, setAvatarPreviewSrc] = useState(initialAvatarSrc);
+  const [avatarPreviewSrc] = useState(initialAvatarSrc);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -128,6 +137,9 @@ export default function EditProfileForm({
         const formData = new FormData();
         formData.append("slug", slug);
         formData.append("fullName", fullName.trim());
+        formData.append("phoneNumber", phoneNumber.trim());
+        formData.append("age", age.trim());
+        formData.append("gender", gender);
 
         if (selectedImageSrc && croppedAreaPixels) {
           const croppedBlob = await getCroppedBlob(
@@ -245,25 +257,87 @@ export default function EditProfileForm({
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="text-base font-semibold">Name</h2>
+        <h2 className="text-base font-semibold">Profile Information</h2>
 
-        <div className="mt-4">
-          <label
-            htmlFor="fullName"
-            className="block text-sm font-medium text-gray-900"
-          >
-            Full Name
-          </label>
-          <input
-            id="fullName"
-            name="fullName"
-            type="text"
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
-            placeholder="Your full name"
-            required
-          />
+        <div className="mt-4 space-y-4">
+          <div>
+            <label
+              htmlFor="fullName"
+              className="block text-sm font-medium text-gray-900"
+            >
+              Full Name
+            </label>
+            <input
+              id="fullName"
+              name="fullName"
+              type="text"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
+              placeholder="Your full name"
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="phoneNumber"
+              className="block text-sm font-medium text-gray-900"
+            >
+              Phone Number
+            </label>
+            <input
+              id="phoneNumber"
+              name="phoneNumber"
+              type="tel"
+              value={phoneNumber}
+              onChange={(event) => setPhoneNumber(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
+              placeholder="Your phone number"
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="age"
+              className="block text-sm font-medium text-gray-900"
+            >
+              Age
+            </label>
+            <input
+              id="age"
+              name="age"
+              type="number"
+              min="1"
+              value={age}
+              onChange={(event) => setAge(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-3 outline-none focus:border-black"
+              placeholder="Your age"
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="gender"
+              className="block text-sm font-medium text-gray-900"
+            >
+              Gender
+            </label>
+            <select
+              id="gender"
+              name="gender"
+              value={gender}
+              onChange={(event) => setGender(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-3 outline-none focus:border-black"
+              required
+            >
+              <option value="">Select gender</option>
+              <option value="male">Male</option>
+<option value="female">Female</option>
+            </select>
+          </div>
         </div>
       </section>
 

@@ -37,9 +37,14 @@ export default async function AdminProgramDetailPage({
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped role.
 
-  if (!membership || membership.role !== "mosque_admin") {
-    notFound(); // Hide admin routes from non-admin users.
-  }
+  const isMosqueAdmin = membership?.role === "mosque_admin";
+const isTeacher = membership?.role === "teacher";
+const canManagePrograms =
+  isMosqueAdmin || (isTeacher && membership?.can_manage_programs);
+
+if (!canManagePrograms) {
+  notFound();
+}
 
   const program = await getProgramByIdIncludingInactiveForMosque(
     programId,

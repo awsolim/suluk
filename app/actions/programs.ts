@@ -5,23 +5,84 @@ import { createClient } from "@/lib/supabase/server";
 
 /**
  * Create a new program for the current mosque.
- * Only a mosque_admin for that mosque is allowed to do this.
+ * Allowed for mosque admins and teachers with can_manage_programs enabled.
  */
 export async function createProgram(formData: FormData) {
-  const slug = String(formData.get("slug") || "").trim(); // Read the tenant slug so the action stays mosque-scoped.
-  const title = String(formData.get("title") || "").trim(); // Read the program title from the form.
-  const description = String(formData.get("description") || "").trim(); // Read the program description from the form.
-  const isActive = formData.get("is_active") === "on"; // Read the checkbox state and convert it to a boolean.
-  const teacherProfileIdRaw = String(formData.get("teacher_profile_id") || "").trim(); // Read the optional assigned teacher id from the form.
-  const teacherProfileId = teacherProfileIdRaw || null; // Convert an empty dropdown selection into null for an unassigned program.
+  const slug = String(formData.get("slug") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const isActive = formData.get("is_active") === "on";
+  const teacherProfileIdRaw = String(formData.get("teacher_profile_id") || "").trim();
+  const teacherProfileId = teacherProfileIdRaw || null;
+  const scheduleRaw = String(formData.get("schedule") || "").trim();
+  const scheduleTimezone =
+    String(formData.get("schedule_timezone") || "").trim() || "America/Edmonton";
 
   if (!slug || !title) {
-    redirect("/"); // Reject incomplete submissions with a safe fallback.
+    redirect("/");
+  }
+
+  let schedule: Array<{ day: string; start: string; end: string }> = [];
+
+  try {
+    const parsed = JSON.parse(scheduleRaw);
+
+    if (!Array.isArray(parsed)) {
+      throw new Error("Schedule must be an array.");
+    }
+
+    const allowedDays = new Set([
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ]);
+
+    const usedDays = new Set<string>();
+
+    schedule = parsed.map((item) => {
+      const day = String(item?.day || "").trim().toLowerCase();
+      const start = String(item?.start || "").trim();
+      const end = String(item?.end || "").trim();
+
+      const timePattern = /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/;
+
+      if (!allowedDays.has(day)) {
+        throw new Error("Schedule contains an invalid day.");
+      }
+
+      if (usedDays.has(day)) {
+        throw new Error("Schedule cannot contain the same day more than once.");
+      }
+
+      if (!timePattern.test(start) || !timePattern.test(end)) {
+        throw new Error("Schedule times must use HH:MM:SS format.");
+      }
+
+      if (start >= end) {
+        throw new Error("Each schedule row must end after it starts.");
+      }
+
+      usedDays.add(day);
+
+      return { day, start, end };
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invalid schedule payload.";
+
+    throw new Error(message);
+  }
+
+  if (schedule.length === 0) {
+    throw new Error("Please add at least one weekly schedule row.");
   }
 
   const supabase = await createClient();
 
-  // Load the currently authenticated user.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -29,10 +90,9 @@ export async function createProgram(formData: FormData) {
   if (!user) {
     redirect(
       `/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/admin/programs/new`)}`
-    ); // Require login before allowing program creation.
+    );
   }
 
-  // Load the current user's profile row.
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id")
@@ -43,7 +103,6 @@ export async function createProgram(formData: FormData) {
     throw new Error("Could not load current profile.");
   }
 
-  // Load the mosque for this tenant slug.
   const { data: mosque, error: mosqueError } = await supabase
     .from("mosques")
     .select("id, slug")
@@ -51,34 +110,39 @@ export async function createProgram(formData: FormData) {
     .maybeSingle();
 
   if (mosqueError || !mosque) {
-    notFound(); // Hide the route if the tenant slug does not exist.
+    notFound();
   }
 
-  // Confirm that the current user is a mosque admin for this mosque.
   const { data: membership, error: membershipError } = await supabase
     .from("mosque_memberships")
-    .select("role")
+    .select("role, can_manage_programs")
     .eq("profile_id", profile.id)
     .eq("mosque_id", mosque.id)
     .maybeSingle();
 
   if (membershipError) {
-    throw new Error(`Failed to verify admin access: ${membershipError.message}`);
+    throw new Error(
+      `Failed to verify program management access: ${membershipError.message}`
+    );
   }
 
-  if (!membership || membership.role !== "mosque_admin") {
-    notFound(); // Hide admin actions from non-admin users.
+  const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isTeacher = membership?.role === "teacher";
+  const isLeadTeacher = membership?.role === "lead_teacher";
+  const canManagePrograms =
+    isMosqueAdmin || isLeadTeacher || (isTeacher && membership?.can_manage_programs);
+
+  if (!canManagePrograms) {
+    notFound();
   }
 
-  // If a teacher was selected, confirm that this teacher actually belongs to
-  // this mosque and has the teacher role before saving the assignment.
   if (teacherProfileId) {
     const { data: teacherMembership, error: teacherMembershipError } = await supabase
       .from("mosque_memberships")
       .select("profile_id, role")
       .eq("profile_id", teacherProfileId)
       .eq("mosque_id", mosque.id)
-      .eq("role", "teacher")
+      .in("role", ["teacher", "lead_teacher"])
       .maybeSingle();
 
     if (teacherMembershipError) {
@@ -92,38 +156,38 @@ export async function createProgram(formData: FormData) {
     }
   }
 
-  // Insert the new program for this mosque, including an optional assigned teacher.
   const { error: insertError } = await supabase.from("programs").insert({
     mosque_id: mosque.id,
     title,
     description: description || null,
     is_active: isActive,
-    teacher_profile_id: teacherProfileId, // Save the selected teacher or null if left unassigned.
+    teacher_profile_id: teacherProfileId,
+    schedule,
+    schedule_timezone: scheduleTimezone,
   });
 
   if (insertError) {
     throw new Error(`Failed to create program: ${insertError.message}`);
   }
 
-  redirect(`/m/${slug}/admin/programs`); // Return to the admin programs list after a successful create.
+  redirect(`/m/${slug}/admin/programs`);
 }
 
 export async function updateProgram(formData: FormData) {
-  const slug = String(formData.get("slug") || "").trim(); // Read the tenant slug so the update stays mosque-scoped.
-  const programId = String(formData.get("programId") || "").trim(); // Read the target program id from the form.
-  const title = String(formData.get("title") || "").trim(); // Read the updated title from the form.
-  const description = String(formData.get("description") || "").trim(); // Read the updated description from the form.
-  const isActive = formData.get("is_active") === "on"; // Read the checkbox state and convert it to a boolean.
-  const teacherProfileIdRaw = String(formData.get("teacher_profile_id") || "").trim(); // Read the optional assigned teacher id from the form.
-  const teacherProfileId = teacherProfileIdRaw || null; // Convert an empty dropdown selection into null for an unassigned program.
+  const slug = String(formData.get("slug") || "").trim();
+  const programId = String(formData.get("programId") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const isActive = formData.get("is_active") === "on";
+  const teacherProfileIdRaw = String(formData.get("teacher_profile_id") || "").trim();
+  const teacherProfileId = teacherProfileIdRaw || null;
 
   if (!slug || !programId || !title) {
-    redirect("/"); // Reject incomplete submissions with a safe fallback.
+    redirect("/");
   }
 
   const supabase = await createClient();
 
-  // Load the currently authenticated user.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -133,10 +197,9 @@ export async function updateProgram(formData: FormData) {
       `/m/${slug}/login?next=${encodeURIComponent(
         `/m/${slug}/admin/programs/${programId}/edit`
       )}`
-    ); // Require login before allowing admin edits.
+    );
   }
 
-  // Load the current user's profile row.
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id")
@@ -147,7 +210,6 @@ export async function updateProgram(formData: FormData) {
     throw new Error("Could not load current profile.");
   }
 
-  // Load the mosque for this tenant slug.
   const { data: mosque, error: mosqueError } = await supabase
     .from("mosques")
     .select("id, slug")
@@ -155,26 +217,29 @@ export async function updateProgram(formData: FormData) {
     .maybeSingle();
 
   if (mosqueError || !mosque) {
-    notFound(); // Hide the route if the tenant slug does not exist.
+    notFound();
   }
 
-  // Confirm that the current user is a mosque admin for this mosque.
   const { data: membership, error: membershipError } = await supabase
     .from("mosque_memberships")
-    .select("role")
+    .select("role, can_manage_programs")
     .eq("profile_id", profile.id)
     .eq("mosque_id", mosque.id)
     .maybeSingle();
 
   if (membershipError) {
-    throw new Error(`Failed to verify admin access: ${membershipError.message}`);
+    throw new Error(`Failed to verify program management access: ${membershipError.message}`);
   }
 
-  if (!membership || membership.role !== "mosque_admin") {
-    notFound(); // Hide admin actions from non-admin users.
+  const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isTeacher = membership?.role === "teacher";
+  const canManagePrograms =
+    isMosqueAdmin || (isTeacher && membership?.can_manage_programs);
+
+  if (!canManagePrograms) {
+    notFound();
   }
 
-  // Confirm that the program belongs to this mosque before updating it.
   const { data: existingProgram, error: existingProgramError } = await supabase
     .from("programs")
     .select("id, mosque_id")
@@ -183,18 +248,16 @@ export async function updateProgram(formData: FormData) {
     .maybeSingle();
 
   if (existingProgramError || !existingProgram) {
-    notFound(); // Hide cross-tenant or invalid program ids.
+    notFound();
   }
 
-  // If a teacher was selected, confirm that this teacher actually belongs to
-  // this mosque and has the teacher role before saving the assignment.
   if (teacherProfileId) {
     const { data: teacherMembership, error: teacherMembershipError } = await supabase
       .from("mosque_memberships")
       .select("profile_id, role")
       .eq("profile_id", teacherProfileId)
       .eq("mosque_id", mosque.id)
-      .eq("role", "teacher")
+      .in("role", ["teacher", "lead_teacher"])
       .maybeSingle();
 
     if (teacherMembershipError) {
@@ -208,14 +271,13 @@ export async function updateProgram(formData: FormData) {
     }
   }
 
-  // Update the program fields, including the optional assigned teacher.
   const { error: updateError } = await supabase
     .from("programs")
     .update({
       title,
       description: description || null,
       is_active: isActive,
-      teacher_profile_id: teacherProfileId, // Save the selected teacher or null if the admin unassigns the program.
+      teacher_profile_id: teacherProfileId,
     })
     .eq("id", programId)
     .eq("mosque_id", mosque.id);
@@ -224,22 +286,21 @@ export async function updateProgram(formData: FormData) {
     throw new Error(`Failed to update program: ${updateError.message}`);
   }
 
-  redirect(`/m/${slug}/admin/programs`); // Return to the admin programs list after a successful update.
+  redirect(`/m/${slug}/admin/programs`);
 }
 
 export async function updateTeacherProgram(formData: FormData) {
-  const slug = String(formData.get("slug") || "").trim(); // Read the tenant slug so the update stays mosque-scoped.
-  const programId = String(formData.get("programId") || "").trim(); // Read the target teacher-owned program id from the form.
-  const title = String(formData.get("title") || "").trim(); // Read the updated title from the form.
-  const description = String(formData.get("description") || "").trim(); // Read the updated description from the form.
+  const slug = String(formData.get("slug") || "").trim();
+  const programId = String(formData.get("programId") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+  const description = String(formData.get("description") || "").trim();
 
   if (!slug || !programId || !title) {
-    redirect("/"); // Reject incomplete submissions with a safe fallback.
+    redirect("/");
   }
 
   const supabase = await createClient();
 
-  // Load the currently authenticated user.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -249,10 +310,9 @@ export async function updateTeacherProgram(formData: FormData) {
       `/m/${slug}/login?next=${encodeURIComponent(
         `/m/${slug}/teacher/programs/${programId}/edit`
       )}`
-    ); // Require login before allowing teacher edits.
+    );
   }
 
-  // Load the current user's profile row.
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id")
@@ -263,7 +323,6 @@ export async function updateTeacherProgram(formData: FormData) {
     throw new Error("Could not load current profile.");
   }
 
-  // Load the mosque for this tenant slug.
   const { data: mosque, error: mosqueError } = await supabase
     .from("mosques")
     .select("id, slug")
@@ -271,10 +330,9 @@ export async function updateTeacherProgram(formData: FormData) {
     .maybeSingle();
 
   if (mosqueError || !mosque) {
-    notFound(); // Hide the route if the tenant slug does not exist.
+    notFound();
   }
 
-  // Confirm that the current user is a teacher for this mosque.
   const { data: membership, error: membershipError } = await supabase
     .from("mosque_memberships")
     .select("role")
@@ -287,10 +345,9 @@ export async function updateTeacherProgram(formData: FormData) {
   }
 
   if (!membership || membership.role !== "teacher") {
-    notFound(); // Hide teacher actions from non-teachers.
+    notFound();
   }
 
-  // Confirm that the target program belongs to this mosque and is assigned to this teacher.
   const { data: existingProgram, error: existingProgramError } = await supabase
     .from("programs")
     .select("id, mosque_id, teacher_profile_id")
@@ -300,15 +357,14 @@ export async function updateTeacherProgram(formData: FormData) {
     .maybeSingle();
 
   if (existingProgramError || !existingProgram) {
-    notFound(); // Hide invalid, cross-tenant, or non-owned program ids.
+    notFound();
   }
 
-  // Update only the teacher-editable fields.
   const { error: updateError } = await supabase
     .from("programs")
     .update({
       title,
-      description: description || null, // Save an empty description as null to keep the column clean.
+      description: description || null,
     })
     .eq("id", programId)
     .eq("mosque_id", mosque.id)
@@ -318,5 +374,5 @@ export async function updateTeacherProgram(formData: FormData) {
     throw new Error(`Failed to update teacher program: ${updateError.message}`);
   }
 
-  redirect(`/m/${slug}/teacher/programs/${programId}`); // Return to the teacher program detail page after a successful update.
+  redirect(`/m/${slug}/teacher/programs/${programId}`);
 }

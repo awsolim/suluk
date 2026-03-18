@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
-import { getMosqueBySlug } from "@/lib/tenants";
+import { notFound } from "next/navigation";
+import { getMosqueBySlug } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/BottomNav";
 
@@ -27,10 +28,12 @@ export default async function TenantLayout({
 }: TenantLayoutProps) {
   const { slug } = await params;
 
-  // Load the tenant mosque from the URL slug.
   const mosque = await getMosqueBySlug(slug);
 
-  // Check if a user is currently authenticated.
+  if (!mosque) {
+    notFound();
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -54,7 +57,6 @@ export default async function TenantLayout({
       }
     >
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
-        {/* Top Header */}
         <header
           className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur"
           style={{ borderTop: `3px solid ${primaryColor}` }}
@@ -77,10 +79,8 @@ export default async function TenantLayout({
           </div>
         </header>
 
-        {/* Page Content */}
         <main className="flex-1 px-4 py-5 pb-20">{children}</main>
 
-        {/* Bottom Navigation (only if logged in) */}
         {user && <BottomNav slug={slug} />}
       </div>
     </div>

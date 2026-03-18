@@ -5,13 +5,14 @@ import { useMemo, useState } from "react";
 import {
   buildCalendarDaysForCurrentMonth,
   formatProgramScheduleSummary,
+  formatUpcomingScheduleLine,
   getNextScheduleSessionLabel,
   getUpcomingScheduleSessions,
   type ProgramScheduleSlot,
   toDateKey,
 } from "@/lib/schedule";
 
-type StudentEnrollmentCardProps = {
+type TeacherProgramCardProps = {
   slug: string;
   program: {
     id: string;
@@ -39,11 +40,11 @@ function formatAnnouncementDate(dateValue: string) {
   }).format(new Date(dateValue));
 }
 
-export default function StudentEnrollmentCard({
+export default function TeacherProgramCard({
   slug,
   program,
   latestAnnouncement,
-}: StudentEnrollmentCardProps) {
+}: TeacherProgramCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const timeZone = program.schedule_timezone || "America/Edmonton";
@@ -77,7 +78,7 @@ export default function StudentEnrollmentCard({
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
       <Link
-        href={`/m/${slug}/classes/${program.id}`}
+        href={`/m/${slug}/teacher/programs/${program.id}`}
         className="block rounded-t-2xl p-4 transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
       >
         <article className="flex items-start justify-between gap-3">
@@ -101,7 +102,7 @@ export default function StudentEnrollmentCard({
         className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[11px] font-medium text-gray-800"
         style={{ backgroundColor: "var(--secondary-color)" }}
       >
-        <span className="min-w-0 truncate px-2 pr-2 text-[15px]">
+        <span className="min-w-0 truncate pr-2 text-[11px]">
           {nextSessionLabel ? `Next: ${nextSessionLabel}` : "Class details"}
         </span>
 

@@ -46,7 +46,7 @@ export default function AppShellClient({
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar - always visible on lg+ at 240px */}
-      <aside className="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-gray-200 lg:bg-white">
+      <aside data-testid="sidebar" className="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-gray-200 lg:bg-white">
         {sidebarContent}
       </aside>
 

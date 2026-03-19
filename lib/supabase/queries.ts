@@ -869,6 +869,99 @@ export async function getStudentProgramApplicationsInMosque(
   return data ?? [];
 }
 
+export async function getMosqueMembers(mosqueId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("mosque_memberships")
+    .select(`
+      id,
+      mosque_id,
+      profile_id,
+      role,
+      can_manage_programs,
+      created_at,
+      profiles!mosque_memberships_profile_id_fkey (
+        full_name,
+        email,
+        avatar_url
+      )
+    `)
+    .eq("mosque_id", mosqueId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load mosque members: ${error.message}`);
+  }
+
+  return (data ?? []).map((member) => {
+    const profile = Array.isArray(member.profiles)
+      ? member.profiles[0]
+      : member.profiles;
+
+    return {
+      id: member.id,
+      mosque_id: member.mosque_id,
+      profile_id: member.profile_id,
+      role: member.role,
+      can_manage_programs: member.can_manage_programs,
+      created_at: member.created_at,
+      profile: {
+        full_name: profile?.full_name ?? null,
+        email: profile?.email ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+      },
+    };
+  });
+}
+
+export async function getMosqueTeachers(mosqueId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("mosque_memberships")
+    .select(`
+      id,
+      mosque_id,
+      profile_id,
+      role,
+      can_manage_programs,
+      created_at,
+      profiles!mosque_memberships_profile_id_fkey (
+        full_name,
+        email,
+        avatar_url
+      )
+    `)
+    .eq("mosque_id", mosqueId)
+    .in("role", ["teacher", "lead_teacher"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load mosque teachers: ${error.message}`);
+  }
+
+  return (data ?? []).map((member) => {
+    const profile = Array.isArray(member.profiles)
+      ? member.profiles[0]
+      : member.profiles;
+
+    return {
+      id: member.id,
+      mosque_id: member.mosque_id,
+      profile_id: member.profile_id,
+      role: member.role,
+      can_manage_programs: member.can_manage_programs,
+      created_at: member.created_at,
+      profile: {
+        full_name: profile?.full_name ?? null,
+        email: profile?.email ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+      },
+    };
+  });
+}
+
 export async function getTeacherProgramApplicationsInMosque(
   teacherProfileId: string,
   mosqueId: string

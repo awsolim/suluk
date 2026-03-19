@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { signup } from "@/app/actions/auth";
-import { getMosqueBySlug } from "@/lib/tenants";
+import { getMosqueBySlug } from "@/lib/supabase/queries";
 import SubmitButton from "@/components/ui/SubmitButton";
+import { Button } from "@/components/ui/button";
 
 type TenantSignupPageProps = {
   params: Promise<{
@@ -19,6 +21,7 @@ export default async function TenantSignupPage({
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
   const mosque = await getMosqueBySlug(slug);
+  if (!mosque) notFound();
   const error = resolvedSearchParams.error;
 
   return (
@@ -143,6 +146,12 @@ export default async function TenantSignupPage({
             Log in
           </Link>
         </p>
+
+        <div className="mt-4">
+          <Button asChild variant="outline" className="w-full">
+            <Link href={`/m/${slug}/programs`}>Browse Programs</Link>
+          </Button>
+        </div>
       </div>
     </section>
   );

@@ -112,6 +112,19 @@ export async function applyToProgram(formData: FormData) {
     if (insertError) {
       throw new Error(`Failed to apply: ${insertError.message}`);
     }
+  } else if (existingApplication.status === "rejected") {
+    const { error: updateError } = await supabase
+      .from("program_applications")
+      .update({
+        status: "pending",
+        reviewed_at: null,
+        reviewed_by_profile_id: null,
+      })
+      .eq("id", existingApplication.id);
+
+    if (updateError) {
+      throw new Error(`Failed to re-apply: ${updateError.message}`);
+    }
   }
 
   revalidatePath(`/m/${slug}/programs`);

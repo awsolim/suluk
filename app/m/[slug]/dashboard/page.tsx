@@ -203,13 +203,13 @@ export default async function DashboardPage({ params }: PageProps) {
         <>
           <section className="mt-6">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Inbox</h2>
+              <h2 className="text-lg font-semibold">Pending Applications</h2>
             </div>
 
             {teacherApplications.length === 0 ? (
               <div className="rounded-xl border border-gray-200 p-4">
                 <p className="text-sm text-gray-600">
-                  No student requests right now.
+                  No pending applications
                 </p>
               </div>
             ) : (
@@ -328,6 +328,39 @@ export default async function DashboardPage({ params }: PageProps) {
             )}
           </section>
 
+          <section className="mt-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">My Classes</h2>
+            </div>
+
+            {teachingPrograms.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <p className="text-sm text-gray-600">
+                  You are not assigned to teach any classes.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {teachingPrograms.map((program) => (
+                  <TeacherProgramCard
+                    key={program.id}
+                    slug={slug}
+                    program={{
+                      id: program.id,
+                      title: program.title,
+                      description: program.description ?? null,
+                      schedule: program.schedule ?? [],
+                      schedule_timezone: program.schedule_timezone ?? "America/Edmonton",
+                    }}
+                    latestAnnouncement={
+                      latestAnnouncementByProgramId.get(program.id) ?? null
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
           <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
             <div className="space-y-1">
               <h2 className="text-base font-semibold">Teacher</h2>
@@ -371,39 +404,6 @@ export default async function DashboardPage({ params }: PageProps) {
                 View Students
               </Link>
             </div>
-          </section>
-
-          <section className="mt-8">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">My Classes</h2>
-            </div>
-
-            {teachingPrograms.length === 0 ? (
-              <div className="rounded-xl border border-gray-200 p-4">
-                <p className="text-sm text-gray-600">
-                  You are not assigned to teach any classes.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {teachingPrograms.map((program) => (
-                  <TeacherProgramCard
-                    key={program.id}
-                    slug={slug}
-                    program={{
-                      id: program.id,
-                      title: program.title,
-                      description: program.description ?? null,
-                      schedule: program.schedule ?? [],
-                      schedule_timezone: program.schedule_timezone ?? "America/Edmonton",
-                    }}
-                    latestAnnouncement={
-                      latestAnnouncementByProgramId.get(program.id) ?? null
-                    }
-                  />
-                ))}
-              </div>
-            )}
           </section>
         </>
       ) : null}

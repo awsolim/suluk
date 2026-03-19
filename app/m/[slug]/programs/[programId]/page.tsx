@@ -17,6 +17,7 @@ import {
   joinApprovedFreeProgram,
 } from "@/app/actions/applications";
 import SubmitButton from "@/components/ui/SubmitButton";
+import CheckoutButton from "@/components/CheckoutButton";
 
 type PageProps = {
   params: Promise<{
@@ -267,22 +268,19 @@ export default async function ProgramDetailsPage({
           ) : application?.status === "accepted" && isPaidProgram ? (
             hasActiveSubscription ? (
               <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
-                Payment active. You can complete joining from your inbox once Stripe is connected.
+                Payment active. You are enrolled in this program.
               </div>
             ) : (
               <div className="space-y-3">
                 <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-800">
-                  Teacher approved. Complete payment and join class.
+                  Teacher approved. Complete payment to join class.
                 </div>
 
-                <button
-                  type="button"
-                  disabled
-                  className="w-full cursor-not-allowed rounded-xl px-4 py-3 text-sm font-medium text-white opacity-60"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Complete Payment and Join Class
-                </button>
+                <CheckoutButton
+                  programId={program.id}
+                  slug={slug}
+                  primaryColor={primaryColor}
+                />
               </div>
             )
           ) : (

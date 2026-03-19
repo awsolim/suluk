@@ -2,12 +2,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { logout } from "@/app/actions/auth";
 import {
-  getMosqueBySlug,
   getProfileForCurrentUser,
   getMosqueMembershipForUser,
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 import SubmitButton from "@/components/ui/SubmitButton";
+import StripeConnectButton from "@/components/StripeConnectButton";
 
 type SettingsPageProps = {
   params: Promise<{
@@ -28,7 +28,12 @@ const DEFAULT_AVATAR =
 export default async function SettingsPage({ params }: SettingsPageProps) {
   const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug);
+  const supabaseForMosque = await createClient();
+  const { data: mosque } = await supabaseForMosque
+    .from("mosques")
+    .select("id, name, slug, logo_url, primary_color, stripe_account_id")
+    .eq("slug", slug)
+    .maybeSingle();
 
   if (!mosque) {
     notFound();
@@ -112,6 +117,24 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             >
               Manage Programs
             </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {isMosqueAdmin ? (
+        <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
+          <h2 className="text-base font-semibold">Payments</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Connect a Stripe account to accept payments for paid programs.
+          </p>
+
+          <div className="mt-4">
+            <StripeConnectButton
+              mosqueId={mosque.id}
+              slug={slug}
+              isConnected={Boolean(mosque.stripe_account_id)}
+              primaryColor={primaryColor}
+            />
           </div>
         </div>
       ) : null}

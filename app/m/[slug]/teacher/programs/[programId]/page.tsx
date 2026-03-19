@@ -557,7 +557,11 @@ export default async function TeacherProgramDetailPage({
           </p>
         </div>
 
-        <StudentRosterClient enrollments={enrollments as any} />
+        <StudentRosterClient
+          enrollments={enrollments as any}
+          programId={program.id}
+          programTitle={program.title}
+        />
       </div>
     </section>
   );

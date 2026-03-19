@@ -1,6 +1,6 @@
 export default function StudentClassLoading() {
   return (
-    <main className="mx-auto max-w-md space-y-4 px-4 py-6">
+    <main className="mx-auto max-w-2xl space-y-4 py-6">
       <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
         <div className="mt-2 h-8 w-48 animate-pulse rounded bg-gray-200" />

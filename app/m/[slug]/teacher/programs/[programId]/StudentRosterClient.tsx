@@ -4,6 +4,7 @@ import { useState } from "react";
 import StudentInfoPanel, {
   type StudentInfo,
 } from "@/components/StudentInfoPanel";
+import RemoveStudent from "@/components/RemoveStudent";
 
 type Enrollment = {
   id: string;
@@ -28,10 +29,14 @@ type Enrollment = {
 
 type StudentRosterClientProps = {
   enrollments: Enrollment[];
+  programId: string;
+  programTitle: string;
 };
 
 export default function StudentRosterClient({
   enrollments,
+  programId,
+  programTitle,
 }: StudentRosterClientProps) {
   const [selectedStudent, setSelectedStudent] = useState<StudentInfo | null>(
     null
@@ -61,30 +66,38 @@ export default function StudentRosterClient({
             `Student ${enrollment.student_profile_id.slice(0, 8)}`;
 
           return (
-            <button
-              key={enrollment.id}
-              type="button"
-              onClick={() => {
-                setSelectedStudent({
-                  name: studentName,
-                  email: student?.email ?? null,
-                  phone: student?.phone_number ?? null,
-                  age: student?.age ?? null,
-                  gender: student?.gender ?? null,
-                  enrollmentDate: enrollment.created_at,
-                });
-                setSheetOpen(true);
-              }}
-              className="flex cursor-pointer flex-col items-center text-center transition hover:opacity-80 active:scale-95"
-            >
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-3xl">
-                👤
-              </div>
+            <div key={enrollment.id} className="flex flex-col items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStudent({
+                    name: studentName,
+                    email: student?.email ?? null,
+                    phone: student?.phone_number ?? null,
+                    age: student?.age ?? null,
+                    gender: student?.gender ?? null,
+                    enrollmentDate: enrollment.created_at,
+                  });
+                  setSheetOpen(true);
+                }}
+                className="flex cursor-pointer flex-col items-center text-center transition hover:opacity-80 active:scale-95"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-3xl">
+                  👤
+                </div>
 
-              <h3 className="mt-2 text-sm font-medium leading-tight text-gray-900">
-                {studentName}
-              </h3>
-            </button>
+                <h3 className="mt-2 text-sm font-medium leading-tight text-gray-900">
+                  {studentName}
+                </h3>
+              </button>
+
+              <RemoveStudent
+                programId={programId}
+                studentProfileId={enrollment.student_profile_id}
+                studentName={studentName}
+                programTitle={programTitle}
+              />
+            </div>
           );
         })}
       </div>

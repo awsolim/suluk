@@ -11,8 +11,7 @@ import {
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 import { canStudentAccessProgram } from "@/lib/billing";
-import { withdrawFromProgram } from "@/app/actions/enrollments";
-import SubmitButton from "@/components/ui/SubmitButton";
+import LeaveProgram from "@/components/LeaveProgram";
 import {
   buildCalendarDaysForCurrentMonth,
   formatProgramScheduleSummary,
@@ -301,16 +300,11 @@ export default async function StudentClassPage({
         )}
 
         <div className="mt-4 border-t border-gray-200 pt-4">
-          <form action={withdrawFromProgram}>
-            <input type="hidden" name="slug" value={slug} />
-            <input type="hidden" name="programId" value={program.id} />
-            <input
-              type="hidden"
-              name="returnTo"
-              value={`/m/${slug}/programs/${program.id}`}
-            />
-            <SubmitButton pendingText="Withdrawing...">Withdraw from Class</SubmitButton>
-          </form>
+          <LeaveProgram
+            programId={program.id}
+            programTitle={program.title}
+            mosqueSlug={slug}
+          />
         </div>
       </section>
     </main>

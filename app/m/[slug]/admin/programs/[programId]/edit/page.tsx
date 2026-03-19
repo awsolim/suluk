@@ -9,6 +9,7 @@ import {
   getTeachersForMosque,
 } from "@/lib/supabase/queries";
 import SubmitButton from "@/components/ui/SubmitButton";
+import PricingEditor from "@/components/PricingEditor";
 
 type EditProgramPageProps = {
   params: Promise<{
@@ -131,6 +132,17 @@ if (!canManagePrograms) {
           <p className="text-xs text-gray-500">
             Choose a teacher from this mosque, or leave the program unassigned.
           </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Pricing</label>
+          <div className="rounded-xl border border-gray-200 px-3 py-3">
+            <PricingEditor
+              isPaid={Boolean(program.is_paid)}
+              priceMonthlyCents={program.price_monthly_cents ?? null}
+              hasStripeAccount={Boolean(mosque.stripe_account_id)}
+            />
+          </div>
         </div>
 
         <label className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-3">

@@ -148,9 +148,12 @@ export default async function TenantSignupPage({
         </p>
 
         <div className="mt-4">
-          <Button asChild variant="outline" className="w-full">
-            <Link href={`/m/${slug}/programs`}>Browse Programs</Link>
-          </Button>
+          <Link
+            href={`/m/${slug}/programs`}
+            className="block rounded-lg border border-gray-300 px-3 py-2 text-center text-sm font-medium hover:bg-gray-50"
+          >
+            Browse Programs
+          </Link>
         </div>
       </div>
     </section>

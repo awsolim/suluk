@@ -217,7 +217,7 @@ function MemberRow({
                 </DialogHeader>
                 <Select
                   value={selectedRole}
-                  onValueChange={(value) => setSelectedRole(value)}
+                  onValueChange={(value) => { if (value) setSelectedRole(value); }}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a role" />

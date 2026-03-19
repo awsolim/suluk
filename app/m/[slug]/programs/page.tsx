@@ -8,7 +8,7 @@ import {
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -93,12 +93,18 @@ export default async function ProgramsPage({ params }: PageProps) {
             You are browsing programs as a guest. Log in or sign up to apply.
           </p>
           <div className="mt-3 flex gap-3">
-            <Button asChild className="flex-1">
-              <Link href={`/m/${slug}/login`}>Log In</Link>
-            </Button>
-            <Button asChild variant="outline" className="flex-1">
-              <Link href={`/m/${slug}/signup`}>Sign Up</Link>
-            </Button>
+            <Link
+              href={`/m/${slug}/login`}
+              className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-sm font-medium text-primary-foreground hover:bg-primary/80"
+            >
+              Log In
+            </Link>
+            <Link
+              href={`/m/${slug}/signup`}
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm font-medium hover:bg-gray-50"
+            >
+              Sign Up
+            </Link>
           </div>
         </div>
       ) : null}

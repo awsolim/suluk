@@ -136,8 +136,8 @@ export default async function ProgramDetailsPage({
     ? supabase.storage.from("media").getPublicUrl(program.teacher_avatar_url).data.publicUrl
     : DEFAULT_AVATAR;
 
-  const teacherName = program.teacher_name || "Teacher not assigned";
-  const teacherPhone = program.teacher_phone_number || "Phone number not available";
+  const teacherName = program.teacher_name ?? "No teacher assigned";
+  const teacherPhone = program.teacher_phone_number ?? "Phone number not available";
 
   const isPaidProgram = Boolean(program.is_paid);
 
@@ -213,7 +213,9 @@ export default async function ProgramDetailsPage({
         </h2>
 
         <p className="mt-3 text-lg font-semibold text-gray-900">
-          {formatMonthlyPrice(program.price_monthly_cents ?? null)}
+          {!isPaidProgram || !program.price_monthly_cents
+            ? "Free"
+            : formatMonthlyPrice(program.price_monthly_cents ?? null)}
         </p>
 
         {isPaidProgram ? (

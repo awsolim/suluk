@@ -121,7 +121,7 @@ export default async function ProgramsPage({ params }: PageProps) {
                   .getPublicUrl(program.teacher_avatar_url).data.publicUrl
               : DEFAULT_AVATAR;
 
-            const teacherName = program.teacher_name || "Teacher not assigned";
+            const teacherName = program.teacher_name ?? "No teacher assigned";
             const isEnrolled = enrolledProgramIds.has(program.id);
 
             const genderTagLabel =

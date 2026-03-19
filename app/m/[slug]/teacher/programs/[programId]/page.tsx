@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createProgramAnnouncement } from "@/app/actions/announcements";
 import SubmitButton from "@/components/ui/SubmitButton";
+import StudentRosterClient from "./StudentRosterClient";
 
 type TeacherProgramDetailPageProps = {
   params: Promise<{
@@ -556,40 +557,7 @@ export default async function TeacherProgramDetailPage({
           </p>
         </div>
 
-        {enrollments.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
-            <p className="text-sm text-gray-600">
-              No students are enrolled in this class yet.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-4">
-            {enrollments.map((enrollment) => {
-              const student = Array.isArray(enrollment.profiles)
-                ? enrollment.profiles[0]
-                : enrollment.profiles;
-
-              const studentName =
-                student?.full_name?.trim() ||
-                `Student ${enrollment.student_profile_id.slice(0, 8)}`;
-
-              return (
-                <article
-                  key={enrollment.id}
-                  className="flex flex-col items-center text-center"
-                >
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-3xl">
-                    👤
-                  </div>
-
-                  <h3 className="mt-2 text-sm font-medium leading-tight text-gray-900">
-                    {studentName}
-                  </h3>
-                </article>
-              );
-            })}
-          </div>
-        )}
+        <StudentRosterClient enrollments={enrollments as any} />
       </div>
     </section>
   );

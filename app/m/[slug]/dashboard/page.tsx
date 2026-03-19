@@ -137,7 +137,7 @@ export default async function DashboardPage({ params }: PageProps) {
   );
 
   return (
-    <main className="mx-auto max-w-md px-4 py-6">
+    <main className="mx-auto max-w-4xl py-6">
       <div className="space-y-1">
         <p className="text-sm text-gray-500">{mosque.name}</p>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
@@ -387,10 +387,10 @@ export default async function DashboardPage({ params }: PageProps) {
               </div>
             ) : null}
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <Link
                 href={`/m/${slug}/classes`}
-                className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+                className="block flex-1 rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
                 style={{ backgroundColor: primaryColor }}
               >
                 My Classes
@@ -398,7 +398,7 @@ export default async function DashboardPage({ params }: PageProps) {
 
               <Link
                 href={`/m/${slug}/students`}
-                className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+                className="block flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
                 style={{ backgroundColor: secondaryColor }}
               >
                 View Students
@@ -548,10 +548,10 @@ export default async function DashboardPage({ params }: PageProps) {
             )}
           </section>
 
-          <section className="mt-8 space-y-3">
+          <section className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href={`/m/${slug}/classes`}
-              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+              className="block flex-1 rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
               style={{ backgroundColor: primaryColor }}
             >
               Go to My Classes
@@ -559,7 +559,7 @@ export default async function DashboardPage({ params }: PageProps) {
 
             <Link
               href={`/m/${slug}/programs`}
-              className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+              className="block flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
               style={{ backgroundColor: secondaryColor }}
             >
               Explore More Programs

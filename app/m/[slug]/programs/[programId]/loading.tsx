@@ -1,6 +1,6 @@
 export default function ProgramDetailsLoading() {
   return (
-    <main className="mx-auto max-w-md space-y-4 px-4 py-6">
+    <main className="mx-auto max-w-2xl space-y-4 py-6">
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="h-48 animate-pulse bg-gray-200" />
 

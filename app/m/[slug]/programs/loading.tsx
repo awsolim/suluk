@@ -1,6 +1,6 @@
 export default function ProgramsLoading() {
   return (
-    <main className="mx-auto max-w-md px-4 py-6">
+    <main className="mx-auto max-w-4xl py-6">
       <div className="mb-6 space-y-2">
         <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
         <div className="h-8 w-32 animate-pulse rounded bg-gray-200" />

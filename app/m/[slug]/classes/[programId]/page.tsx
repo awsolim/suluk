@@ -123,7 +123,7 @@ export default async function StudentClassPage({
   const { monthLabel, cells } = buildCalendarDaysForCurrentMonth(timeZone);
 
   return (
-    <main className="mx-auto max-w-md space-y-4 px-4 py-6">
+    <main className="mx-auto max-w-2xl space-y-4 py-6">
       <Link
         href={`/m/${slug}/classes`}
         className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-white"

@@ -193,9 +193,17 @@ parent_child_links
 - Parent handles Stripe checkout for paid programs
 
 ### RLS Changes for Parent Enrollment
-- `enrollments` table needs an additional INSERT policy: allow when `auth.uid()` has a matching `parent_child_links` row for the `student_profile_id`
-- `program_applications` table needs the same: allow INSERT where the `profile_id` is a child linked to `auth.uid()` via `parent_child_links`
-- SELECT policies for both tables also need expansion so parents can view their children's enrollments/applications
+- `enrollments` table needs an additional INSERT/SELECT policy: allow when `auth.uid()` has a matching `parent_child_links` row for the `student_profile_id`
+- `program_applications` table needs the same: allow INSERT/SELECT where the `profile_id` is a child linked to `auth.uid()` via `parent_child_links`
+
+### Blocking Parents from Direct Self-Enrollment
+- The existing `enrollInProgram` and `applyToProgram` server actions must add `role === 'parent'` to their rejection guards (alongside `teacher` and `mosque_admin`). Parents should only enroll via `enrollChildInProgram` / `applyForChild`, never for themselves.
+
+### Child Profile Creation Without auth.users
+- In standard Supabase setups, `profiles.id` is a FK to `auth.users.id`. Child profiles have no auth user, so this FK must be addressed.
+- **Approach:** Use the Supabase service role client in the `addChild` server action to insert the child profile with a generated UUID. The `profiles` table FK constraint (`profiles.id → auth.users.id`) must be dropped or made optional to allow child-only profiles.
+- The migration must: (1) drop the FK constraint on `profiles.id`, (2) ensure RLS policies still work correctly since child profiles won't have a matching `auth.uid()`.
+- Child profiles are identifiable by having no corresponding `auth.users` row. The parent-child link table provides the access control layer instead of auth-based RLS.
 
 ### Navigation
 - Parent gets: Home, Programs, Settings

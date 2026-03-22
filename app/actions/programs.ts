@@ -19,6 +19,8 @@ export async function createProgram(formData: FormData) {
   const scheduleRaw = String(formData.get("schedule") || "").trim();
   const scheduleTimezone =
     String(formData.get("schedule_timezone") || "").trim() || "America/Edmonton";
+  const tagsRaw = String(formData.get("tags") || "").trim();
+  const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
   if (!slug || !title) {
     redirect("/");
@@ -166,6 +168,7 @@ export async function createProgram(formData: FormData) {
     teacher_profile_id: teacherProfileId,
     schedule,
     schedule_timezone: scheduleTimezone,
+    tags,
   });
 
   if (insertError) {
@@ -276,6 +279,8 @@ export async function updateProgram(formData: FormData) {
   const isPaid = formData.get("is_paid") === "on";
   const priceMonthlyCentsRaw = String(formData.get("price_monthly_cents") || "").trim();
   const priceMonthlyCents = priceMonthlyCentsRaw ? parseInt(priceMonthlyCentsRaw, 10) : null;
+  const tagsRaw = String(formData.get("tags") || "").trim();
+  const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
   const { error: updateError } = await supabase
     .from("programs")
@@ -286,6 +291,7 @@ export async function updateProgram(formData: FormData) {
       teacher_profile_id: teacherProfileId,
       is_paid: isPaid,
       price_monthly_cents: priceMonthlyCents,
+      tags,
     })
     .eq("id", programId)
     .eq("mosque_id", mosque.id);

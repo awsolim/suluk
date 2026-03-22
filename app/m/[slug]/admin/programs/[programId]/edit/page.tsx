@@ -135,6 +135,20 @@ if (!canManagePrograms) {
         </div>
 
         <div className="space-y-2">
+          <label htmlFor="tags" className="block text-sm font-medium">
+            Tags (comma-separated)
+          </label>
+          <input
+            id="tags"
+            name="tags"
+            type="text"
+            placeholder="Quran & Tajweed, Sisters Only, Youth"
+            defaultValue={(program.tags as string[] | null)?.join(", ") ?? ""}
+            className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none"
+          />
+        </div>
+
+        <div className="space-y-2">
           <label className="block text-sm font-medium">Pricing</label>
           <div className="rounded-xl border border-gray-200 px-3 py-3">
             <PricingEditor

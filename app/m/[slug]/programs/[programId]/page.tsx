@@ -18,6 +18,8 @@ import {
 } from "@/app/actions/applications";
 import SubmitButton from "@/components/ui/SubmitButton";
 import CheckoutButton from "@/components/CheckoutButton";
+import { ChildSelector } from "@/components/programs/ChildSelector";
+import { getChildrenForParent } from "@/lib/supabase/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -104,23 +106,35 @@ export default async function ProgramDetailsPage({
 
   const isTeacher = membership?.role === "teacher";
   const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isParent = membership?.role === "parent";
 
+  // Parents don't enroll themselves — they use ChildSelector
   const enrollment =
-    profile && !isTeacher && !isMosqueAdmin
+    profile && !isTeacher && !isMosqueAdmin && !isParent
       ? await getEnrollmentForStudent(program.id, profile.id)
       : null;
 
   const application =
-    profile && !isTeacher && !isMosqueAdmin
+    profile && !isTeacher && !isMosqueAdmin && !isParent
       ? await getProgramApplicationForStudent(profile.id, program.id)
       : null;
 
   const subscription =
-    profile && program.is_paid && !isTeacher && !isMosqueAdmin
+    profile && program.is_paid && !isTeacher && !isMosqueAdmin && !isParent
       ? await getProgramSubscriptionForStudent(profile.id, program.id)
       : null;
 
   const hasActiveSubscription = isSubscriptionActive(subscription);
+
+  // Load children for parent role
+  const parentChildren =
+    profile && isParent
+      ? await getChildrenForParent(profile.id, mosque.id)
+      : [];
+  const childrenList = parentChildren.map((link: any) => ({
+    id: link.profiles?.id ?? link.child_profile_id,
+    full_name: link.profiles?.full_name ?? "Unknown",
+  })).filter((c: any) => c.id);
 
   const isFromAdmin = from === "admin";
 
@@ -249,6 +263,28 @@ export default async function ProgramDetailsPage({
             <div className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium text-gray-600">
               Mosque admins cannot apply to programs.
             </div>
+          ) : isParent ? (
+            childrenList.length > 0 ? (
+              <ChildSelector
+                linkedChildren={childrenList}
+                programId={program.id}
+                slug={slug}
+                requiresApplication={true}
+                isPaid={isPaidProgram}
+                primaryColor={primaryColor}
+              />
+            ) : (
+              <div className="space-y-2 text-center">
+                <p className="text-sm text-gray-600">Add a child to your account first.</p>
+                <Link
+                  href={`/m/${slug}/dashboard`}
+                  className="inline-block rounded-xl px-4 py-2 text-sm font-medium text-white"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  Go to Dashboard
+                </Link>
+              </div>
+            )
           ) : application?.status === "joined" || enrollment ? (
             <div className="space-y-3 text-center">
               <Badge variant="default">Enrolled</Badge>

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { TEST_MOSQUE_SLUG, TEST_PARENT, loginAsParent } from './helpers';
 
-// Covers: US-P1, US-P2, US-P3, US-P4, US-P5, US-P6
+// Covers: US-P1, US-P2, US-P3, US-P4, US-P5, US-P6, US-P7
 test.describe('Parent role', () => {
 
   // US-P1: As a parent, I can sign up selecting the "Parent" role
@@ -68,8 +68,46 @@ test.describe('Parent role', () => {
   test('US-P6: parent views application status', async ({ page }) => {
     await loginAsParent(page);
 
-    // Seed data places the test child with a pending application on the paid program
+    // Seed data places the test child with an accepted application on the paid program
     await expect(page.locator('[data-testid="child-card"]')).toBeVisible();
     await expect(page.locator('[data-testid="application-status"]')).toBeVisible();
+  });
+
+  // US-P7: As a parent, I can pay for my child's enrollment in a paid program
+  test('US-P7: parent initiates checkout for child paid program', async ({ page }) => {
+    await loginAsParent(page);
+
+    // Navigate to the paid program (Advanced Arabic)
+    await page.click('a[href*="/programs"]');
+    await page.getByText('Advanced Arabic').click();
+
+    // Parent should see the ChildSelector on the program detail page
+    await expect(page.locator('[data-testid="child-selector"]')).toBeVisible({ timeout: 10000 });
+
+    // Select the child
+    await page.locator('[data-testid="child-option"]').first().click();
+
+    // Since the child has an accepted application on this paid program,
+    // the checkout button should appear
+    const checkoutButton = page.locator('[data-testid="checkout-child-button"]');
+    await expect(checkoutButton).toBeVisible({ timeout: 10000 });
+    await expect(checkoutButton).toContainText(/pay.*enroll/i);
+
+    // Click checkout — this will call /api/stripe/checkout with childProfileId
+    // We intercept the API call to verify it includes childProfileId without
+    // actually redirecting to Stripe
+    const [checkoutRequest] = await Promise.all([
+      page.waitForRequest((req) =>
+        req.url().includes('/api/stripe/checkout') && req.method() === 'POST'
+      ),
+      checkoutButton.click(),
+    ]);
+
+    // Verify the request body includes the child profile ID
+    const body = checkoutRequest.postDataJSON();
+    expect(body).toHaveProperty('childProfileId');
+    expect(body.childProfileId).toBeTruthy();
+    expect(body.programId).toBeTruthy();
+    expect(body.slug).toBe(TEST_MOSQUE_SLUG);
   });
 });

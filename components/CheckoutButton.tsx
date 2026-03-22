@@ -6,9 +6,11 @@ type Props = {
   programId: string;
   slug: string;
   primaryColor: string;
+  childProfileId?: string;
+  label?: string;
 };
 
-export default function CheckoutButton({ programId, slug, primaryColor }: Props) {
+export default function CheckoutButton({ programId, slug, primaryColor, childProfileId, label }: Props) {
   const [loading, setLoading] = useState(false);
 
   async function handleCheckout() {
@@ -18,7 +20,7 @@ export default function CheckoutButton({ programId, slug, primaryColor }: Props)
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ programId, slug }),
+        body: JSON.stringify({ programId, slug, childProfileId }),
       });
 
       const data = await response.json();
@@ -43,7 +45,7 @@ export default function CheckoutButton({ programId, slug, primaryColor }: Props)
       className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
       style={{ backgroundColor: primaryColor }}
     >
-      {loading ? "Redirecting to payment..." : "Complete Payment and Join Class"}
+      {loading ? "Redirecting to payment..." : (label || "Complete Payment and Join Class")}
     </button>
   );
 }

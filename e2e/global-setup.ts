@@ -179,12 +179,12 @@ export default async function globalSetup() {
       });
     }
 
-    // Child has a pending application on paid program
+    // Child has an accepted application on paid program (for checkout test)
     if (paidProgram) {
       await supabase.from('program_applications').insert({
         program_id: paidProgram.id,
         student_profile_id: childProfile.id,
-        status: 'pending',
+        status: 'accepted',
       });
     }
   }

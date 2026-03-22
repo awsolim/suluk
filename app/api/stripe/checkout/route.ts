@@ -31,10 +31,20 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const programId = String(body.programId ?? "").trim();
   const slug = String(body.slug ?? "").trim();
+  const childProfileId = body.childProfileId
+    ? String(body.childProfileId).trim()
+    : null;
 
   if (!programId || !slug) {
     return NextResponse.json(
       { error: "Missing programId or slug." },
+      { status: 400 }
+    );
+  }
+
+  if (childProfileId && !UUID_RE.test(childProfileId)) {
+    return NextResponse.json(
+      { error: "Invalid childProfileId." },
       { status: 400 }
     );
   }
@@ -86,17 +96,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Determine the student being enrolled — either the user or their child
+  const studentProfileId = childProfileId || user.id;
+
+  // If paying for a child, verify the parent-child link
+  if (childProfileId) {
+    const { data: link } = await supabase
+      .from("parent_child_links")
+      .select("id")
+      .eq("parent_profile_id", user.id)
+      .eq("child_profile_id", childProfileId)
+      .eq("mosque_id", mosque.id)
+      .maybeSingle();
+
+    if (!link) {
+      return NextResponse.json(
+        { error: "This child is not linked to your account." },
+        { status: 403 }
+      );
+    }
+  }
+
   // Verify the student has an accepted application
   const { data: application } = await supabase
     .from("program_applications")
     .select("id, status")
-    .eq("student_profile_id", user.id)
+    .eq("student_profile_id", studentProfileId)
     .eq("program_id", programId)
     .maybeSingle();
 
   if (!application || application.status !== "accepted") {
     return NextResponse.json(
-      { error: "You need an accepted application before paying." },
+      { error: "An accepted application is required before paying." },
       { status: 403 }
     );
   }
@@ -106,12 +137,12 @@ export async function POST(request: NextRequest) {
     .from("enrollments")
     .select("id")
     .eq("program_id", programId)
-    .eq("student_profile_id", user.id)
+    .eq("student_profile_id", studentProfileId)
     .maybeSingle();
 
   if (existingEnrollment) {
     return NextResponse.json(
-      { error: "You are already enrolled in this program." },
+      { error: "Already enrolled in this program." },
       { status: 400 }
     );
   }
@@ -163,14 +194,16 @@ export async function POST(request: NextRequest) {
       cancel_url: `${origin}/m/${mosqueSlug}/programs/${programId}?payment=cancelled`,
       metadata: {
         program_id: programId,
-        student_profile_id: user.id,
+        student_profile_id: studentProfileId,
+        payer_profile_id: user.id,
         mosque_id: mosque.id,
         slug: mosqueSlug,
       },
       subscription_data: {
         metadata: {
           program_id: programId,
-          student_profile_id: user.id,
+          student_profile_id: studentProfileId,
+          payer_profile_id: user.id,
           mosque_id: mosque.id,
         },
       },

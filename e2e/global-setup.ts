@@ -1,4 +1,4 @@
-import { createTestSupabaseClient, TEST_MOSQUE_SLUG, TEST_MOSQUE_NAME, TEST_ADMIN, TEST_TEACHER, TEST_STUDENT } from './helpers';
+import { createTestSupabaseClient, TEST_MOSQUE_SLUG, TEST_MOSQUE_NAME, TEST_ADMIN, TEST_TEACHER, TEST_STUDENT, TEST_PARENT } from './helpers';
 
 /**
  * Global setup for Playwright tests.
@@ -29,6 +29,7 @@ export default async function globalSetup() {
       'program_id',
       (await supabase.from('programs').select('id').eq('mosque_id', existingMosque.id)).data?.map(p => p.id) ?? []
     );
+    await supabase.from('parent_child_links').delete().eq('mosque_id', existingMosque.id);
     await supabase.from('programs').delete().eq('mosque_id', existingMosque.id);
     await supabase.from('mosque_memberships').delete().eq('mosque_id', existingMosque.id);
     await supabase.from('mosques').delete().eq('id', existingMosque.id);
@@ -81,12 +82,26 @@ export default async function globalSetup() {
   const adminUser = await createUser(TEST_ADMIN.email, TEST_ADMIN.password, TEST_ADMIN.fullName);
   const teacherUser = await createUser(TEST_TEACHER.email, TEST_TEACHER.password, TEST_TEACHER.fullName);
   const studentUser = await createUser(TEST_STUDENT.email, TEST_STUDENT.password, TEST_STUDENT.fullName);
+  const parentUser = await createUser(TEST_PARENT.email, TEST_PARENT.password, TEST_PARENT.fullName);
+
+  // Create a child profile (no auth user — child profiles are auth-less per migration)
+  const { data: childProfile } = await supabase
+    .from('profiles')
+    .insert({
+      id: '00000000-0000-0000-0000-000000000001',
+      full_name: 'Test Child',
+      email: null,
+      date_of_birth: '2017-03-10',
+    })
+    .select()
+    .single();
 
   // Create mosque memberships
   await supabase.from('mosque_memberships').insert([
     { mosque_id: mosque.id, profile_id: adminUser.id, role: 'mosque_admin', can_manage_programs: true },
     { mosque_id: mosque.id, profile_id: teacherUser.id, role: 'teacher', can_manage_programs: true },
     { mosque_id: mosque.id, profile_id: studentUser.id, role: 'student', can_manage_programs: false },
+    { mosque_id: mosque.id, profile_id: parentUser.id, role: 'parent', can_manage_programs: false },
   ]);
 
   // Create test programs
@@ -148,11 +163,39 @@ export default async function globalSetup() {
     });
   }
 
+  // Parent-child link
+  if (childProfile) {
+    await supabase.from('parent_child_links').insert({
+      parent_profile_id: parentUser.id,
+      child_profile_id: childProfile.id,
+      mosque_id: mosque.id,
+    });
+
+    // Child enrolled in free program
+    if (freeProgram) {
+      await supabase.from('enrollments').insert({
+        program_id: freeProgram.id,
+        student_profile_id: childProfile.id,
+      });
+    }
+
+    // Child has a pending application on paid program
+    if (paidProgram) {
+      await supabase.from('program_applications').insert({
+        program_id: paidProgram.id,
+        student_profile_id: childProfile.id,
+        status: 'pending',
+      });
+    }
+  }
+
   // Store IDs for tests to reference
   process.env.TEST_MOSQUE_ID = mosque.id;
   process.env.TEST_ADMIN_ID = adminUser.id;
   process.env.TEST_TEACHER_ID = teacherUser.id;
   process.env.TEST_STUDENT_ID = studentUser.id;
+  process.env.TEST_PARENT_ID = parentUser.id;
+  process.env.TEST_CHILD_ID = childProfile?.id ?? '';
   process.env.TEST_FREE_PROGRAM_ID = freeProgram?.id ?? '';
   process.env.TEST_PAID_PROGRAM_ID = paidProgram?.id ?? '';
 

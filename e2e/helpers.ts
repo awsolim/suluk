@@ -30,6 +30,12 @@ export const TEST_STUDENT = {
   fullName: 'Test Student',
 };
 
+export const TEST_PARENT = {
+  email: 'parent-e2e@test.suluk.dev',
+  password: 'test-password-123!',
+  fullName: 'Test Parent',
+};
+
 /**
  * Creates a Supabase service client for test data operations.
  * Uses env vars that must be available at test time.
@@ -85,4 +91,11 @@ export async function loginAsTeacher(page: Page) {
  */
 export async function loginAsStudent(page: Page) {
   await login(page, TEST_STUDENT.email, TEST_STUDENT.password);
+}
+
+/**
+ * Logs in as the test parent user.
+ */
+export async function loginAsParent(page: Page) {
+  await login(page, TEST_PARENT.email, TEST_PARENT.password);
 }

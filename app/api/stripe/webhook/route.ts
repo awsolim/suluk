@@ -127,7 +127,7 @@ async function handleCheckoutCompleted(supabase: any, session: Stripe.Checkout.S
     const { data: existingSub } = await supabase
       .from("program_subscriptions")
       .select("id")
-      .eq("profile_id", studentProfileId)
+      .eq("student_profile_id", studentProfileId)
       .eq("program_id", programId)
       .maybeSingle();
 
@@ -141,7 +141,7 @@ async function handleCheckoutCompleted(supabase: any, session: Stripe.Checkout.S
         .eq("id", existingSub.id);
     } else {
       await supabase.from("program_subscriptions").insert({
-        profile_id: studentProfileId,
+        student_profile_id: studentProfileId,
         program_id: programId,
         stripe_subscription_id: subscriptionId,
         status: "active",

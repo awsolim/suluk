@@ -19,6 +19,7 @@ export type Database = {
           age: string | null;
           gender: string | null;
           global_role: "platform_admin" | null;
+          date_of_birth: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -31,6 +32,7 @@ export type Database = {
           age?: string | null;
           gender?: string | null;
           global_role?: "platform_admin" | null;
+          date_of_birth?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -43,6 +45,7 @@ export type Database = {
           age?: string | null;
           gender?: string | null;
           global_role?: "platform_admin" | null;
+          date_of_birth?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -100,7 +103,7 @@ export type Database = {
           id: string;
           mosque_id: string;
           profile_id: string;
-          role: "mosque_admin" | "lead_teacher" | "teacher" | "student";
+          role: "mosque_admin" | "lead_teacher" | "teacher" | "student" | "parent";
           can_manage_programs: boolean;
           created_at: string;
         };
@@ -108,7 +111,7 @@ export type Database = {
           id?: string;
           mosque_id: string;
           profile_id: string;
-          role: "mosque_admin" | "lead_teacher" | "teacher" | "student";
+          role: "mosque_admin" | "lead_teacher" | "teacher" | "student" | "parent";
           can_manage_programs?: boolean;
           created_at?: string;
         };
@@ -116,7 +119,7 @@ export type Database = {
           id?: string;
           mosque_id?: string;
           profile_id?: string;
-          role?: "mosque_admin" | "lead_teacher" | "teacher" | "student";
+          role?: "mosque_admin" | "lead_teacher" | "teacher" | "student" | "parent";
           can_manage_programs?: boolean;
           created_at?: string;
         };
@@ -141,6 +144,7 @@ export type Database = {
           schedule: Json | null;
           schedule_timezone: string | null;
           schedule_notes: string | null;
+          tags: string[];
           created_at: string;
           updated_at: string;
         };
@@ -161,6 +165,7 @@ export type Database = {
           schedule?: Json | null;
           schedule_timezone?: string | null;
           schedule_notes?: string | null;
+          tags?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -181,6 +186,7 @@ export type Database = {
           schedule?: Json | null;
           schedule_timezone?: string | null;
           schedule_notes?: string | null;
+          tags?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -301,6 +307,31 @@ export type Database = {
           message?: string;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+
+      parent_child_links: {
+        Row: {
+          id: string;
+          parent_profile_id: string;
+          child_profile_id: string;
+          mosque_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          parent_profile_id: string;
+          child_profile_id: string;
+          mosque_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          parent_profile_id?: string;
+          child_profile_id?: string;
+          mosque_id?: string;
+          created_at?: string;
         };
         Relationships: [];
       };

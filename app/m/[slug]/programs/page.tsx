@@ -9,6 +9,7 @@ import {
   getEnrollmentsForStudentInMosque,
   getStudentProgramApplicationsInMosque,
 } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/server";
 import { ProgramCard } from "@/components/programs/ProgramCard";
 import { TagFilter } from "@/components/programs/TagFilter";
 import { ProgramSearch } from "@/components/programs/ProgramSearch";
@@ -33,7 +34,19 @@ export default async function ProgramsPage({
     ? await getMosqueMembershipForUser(profile.id, mosque.id)
     : null;
 
-  const programs = await getProgramsByMosqueId(mosque.id);
+  const supabase = await createClient();
+  const rawPrograms = await getProgramsByMosqueId(mosque.id);
+
+  // Resolve storage paths to full public URLs
+  const programs = rawPrograms.map((p) => ({
+    ...p,
+    thumbnail_url: p.thumbnail_url
+      ? supabase.storage.from("media").getPublicUrl(p.thumbnail_url).data.publicUrl
+      : null,
+    profiles: p.teacher_name
+      ? { full_name: p.teacher_name, avatar_url: p.teacher_avatar_url }
+      : null,
+  }));
   const tags = await getActiveTagsForMosque(mosque.id);
 
   // For parents, skip enrollment/application lookups

@@ -39,9 +39,14 @@ export default function Sidebar({
             className="h-full w-full object-cover"
           />
         </div>
-        <span className="truncate text-sm font-semibold">
-          {mosqueName}
-        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold leading-tight">
+            {mosqueName}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            Community Portal
+          </p>
+        </div>
       </div>
 
       <Separator />
@@ -81,6 +86,8 @@ export default function Sidebar({
           </div>
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground px-4 py-2">Powered by Suluk</p>
     </div>
   );
 }

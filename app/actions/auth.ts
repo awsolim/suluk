@@ -3,17 +3,16 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getMosqueBySlug } from "@/lib/supabase/queries";
 
 export async function signup(formData: FormData) {
   const fullName = String(formData.get("full_name") || "").trim();
   const email = String(formData.get("email") || "").trim();
-  const phoneNumber = String(formData.get("phone_number") || "").trim();
-  const age = Number(formData.get("age") || 0);
-  const gender = String(formData.get("gender") || "").trim();
   const password = String(formData.get("password") || "");
   const slug = String(formData.get("slug") || "").trim();
+  const role = String(formData.get("role") || "student").trim();
 
-  if (!fullName || !email || !phoneNumber || !password || !slug || !age || !gender) {
+  if (!fullName || !email || !password || !slug) {
     redirect("/");
   }
 
@@ -25,9 +24,6 @@ export async function signup(formData: FormData) {
     options: {
       data: {
         full_name: fullName,
-        phone_number: phoneNumber,
-        age,
-        gender,
       },
     },
   });
@@ -41,13 +37,19 @@ export async function signup(formData: FormData) {
       id: data.user.id,
       full_name: fullName,
       email,
-      phone_number: phoneNumber,
-      age,
-      gender,
     });
 
     if (profileError) {
       redirect(`/m/${slug}/signup?error=${encodeURIComponent(profileError.message)}`);
+    }
+
+    const mosque = await getMosqueBySlug(slug);
+    if (mosque) {
+      await supabase.from("mosque_memberships").upsert({
+        mosque_id: mosque.id,
+        profile_id: data.user.id,
+        role: role === "parent" ? "parent" : "student",
+      }, { onConflict: "mosque_id,profile_id" });
     }
   }
 

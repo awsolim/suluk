@@ -15,6 +15,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import StudentEnrollmentCard from "@/components/dashboard/StudentEnrollmentCard";
 import TeacherProgramCard from "@/components/dashboard/TeacherProgramCard";
+import { ParentDashboard } from "@/components/dashboard/ParentDashboard";
 import {
   acceptProgramApplication,
   rejectProgramApplication,
@@ -53,6 +54,17 @@ export default async function DashboardPage({ params }: PageProps) {
   }
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+
+  if (membership?.role === "parent") {
+    return (
+      <ParentDashboard
+        profileId={profile.id}
+        mosqueId={mosque.id}
+        slug={slug}
+        primaryColor={primaryColor}
+      />
+    );
+  }
 
   const isMosqueAdmin = membership?.role === "mosque_admin";
   const isLeadTeacher = membership?.role === "lead_teacher";

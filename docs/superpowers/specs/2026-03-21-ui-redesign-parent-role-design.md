@@ -106,7 +106,9 @@ The app must feel like **the mosque's app**, powered by Suluk. Every user-facing
   - Selected state: bordered with mosque `primary_color`
   - Sets the `role` in the membership record
 - Form fields: Full Name, Email, Password
-  - Phone, age, gender moved to profile completion in Settings
+  - Phone, age, gender removed from signup form
+  - The `signup` server action must drop the hard validation for `phoneNumber`, `age`, and `gender` — these become optional profile fields editable in Settings
+  - The `updateProfile` server action must also be loosened to allow saving without age/gender (currently hard-requires them)
 - "Create Account" button (mosque `primary_color`)
 - Terms/Privacy consent text
 - "Already have an account? Login" link
@@ -128,8 +130,9 @@ The app must feel like **the mosque's app**, powered by Suluk. Every user-facing
 ### Personal Information (left column)
 - Full Name, Email Address, Phone Number — inline editable fields
 - "Save Changes" button
-- Wired to existing `updateProfile` server action
-- Replaces the separate `/settings/profile` route
+- Wired to existing `updateProfile` server action (which must be updated to make age/gender optional)
+- Replaces the separate `/settings/profile` route — delete `/m/[slug]/settings/profile/` directory
+- Avatar upload from the existing `EditProfileForm` is moved inline to the profile card (reuse the upload logic, not the whole component)
 
 ### Admin Tools (left column, admin only)
 - Links to program management, Stripe Connect
@@ -164,9 +167,14 @@ parent_child_links
 - Children cannot see or modify the links
 
 ### Signup Flow
-- Parent selects "Parent" role at signup → creates account with `role: 'parent'` in `mosque_memberships`
+- Parent selects "Parent" role at signup → the `signup` server action is extended to:
+  1. Create the Supabase auth user and profile (existing behavior)
+  2. **Insert a `mosque_memberships` row** with `role: 'parent'` for the current mosque
+  - Currently, `signup` does NOT create a membership row — it only creates the auth user and upserts a profile. The student flow works because the layout falls back to `role = 'student'` when membership is null. For parents, this fallback would be wrong, so the membership must be explicitly created at signup.
+  - This change also benefits students: create a membership row with `role: 'student'` at signup for consistency.
 - After signup, parent lands on dashboard with prompt to "Add your first child"
-- Add child form: Full Name, Age, Gender
+- Add child form: Full Name, Date of Birth, Gender
+  - Store `date_of_birth date` instead of `age integer` for children — a static age integer becomes wrong after a year. The `profiles` table should add an optional `date_of_birth` column. Display age is computed from DOB at render time.
 - Child gets a `profiles` row but no auth credentials (no `auth.users` row)
 - Child's `mosque_memberships` role is `'student'`
 - If child wants their own login later, they can sign up independently and be linked
@@ -179,12 +187,22 @@ parent_child_links
 
 ### Enrollment on Behalf
 - When parent browses programs, a child selector appears before "Enroll Now" / "Apply"
-- Enrollment/application created with child's `profile_id`
+- **New server actions required** (existing ones auth-gate via `supabase.auth.getUser()` and cannot insert with a different `profile_id`):
+  - `enrollChildInProgram(childProfileId, programId, slug)` — verifies the parent-child link via `parent_child_links` before inserting enrollment with `child_profile_id`
+  - `applyForChild(childProfileId, programId, slug)` — same pattern for applications
 - Parent handles Stripe checkout for paid programs
+
+### RLS Changes for Parent Enrollment
+- `enrollments` table needs an additional INSERT policy: allow when `auth.uid()` has a matching `parent_child_links` row for the `student_profile_id`
+- `program_applications` table needs the same: allow INSERT where the `profile_id` is a child linked to `auth.uid()` via `parent_child_links`
+- SELECT policies for both tables also need expansion so parents can view their children's enrollments/applications
 
 ### Navigation
 - Parent gets: Home, Programs, Settings
 - No "Classes" link — parents view classes through children's cards
+- **`lib/nav.ts` changes required:**
+  - Add `role === 'parent'` branch to `getNavItems()` returning Home, Programs, Settings
+  - Add `'parent'` case to `getRoleLabel()` returning "Parent"
 
 ### User Stories
 1. US-P1: As a parent, I can sign up selecting the "Parent" role
@@ -200,7 +218,7 @@ parent_child_links
 
 ### Programs table
 - Add column: `tags text[]` (array of free-form strings)
-- Filter chips auto-generated via `SELECT DISTINCT unnest(tags) FROM programs WHERE mosque_id = ?`
+- Filter chips auto-generated via `SELECT DISTINCT unnest(tags) FROM programs WHERE mosque_id = ? AND is_active = true`
 - Admin program create/edit forms get a tags input (multi-select or comma-separated)
 
 ### New table: `parent_child_links`
@@ -210,9 +228,23 @@ parent_child_links
 ### Signup changes
 - `signup` server action gets optional `role` parameter (`'student' | 'parent'`)
 - Defaults to `'student'` for backward compatibility
+- Drops hard validation for `phoneNumber`, `age`, `gender` — these become optional
+- **Inserts a `mosque_memberships` row** with the selected role at signup (currently not done)
 
 ### Profile changes
-- No schema change — child profiles are regular `profiles` rows without auth credentials
+- Add optional `date_of_birth date` column to `profiles` (used for child profiles, optional for adults)
+- `updateProfile` action loosened to not require age/gender
+- Child profiles are regular `profiles` rows without auth credentials
+
+### New server actions
+- `addChild(fullName, dateOfBirth, gender, slug)` — creates child profile + membership + parent-child link
+- `enrollChildInProgram(childProfileId, programId, slug)` — parent enrolls child, verifies link
+- `applyForChild(childProfileId, programId, slug)` — parent applies for child, verifies link
+- `removeChild(childProfileId, slug)` — removes parent-child link (does not delete the profile)
+
+### RLS policy changes
+- `enrollments`: add INSERT/SELECT policy for parents via `parent_child_links` join
+- `program_applications`: add INSERT/SELECT policy for parents via `parent_child_links` join
 
 ---
 

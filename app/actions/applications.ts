@@ -55,7 +55,7 @@ export async function applyToProgram(formData: FormData) {
     throw new Error(`Could not verify mosque role: ${membershipError.message}`);
   }
 
-  if (membership?.role === "teacher" || membership?.role === "mosque_admin") {
+  if (membership?.role === "teacher" || membership?.role === "mosque_admin" || membership?.role === "parent") {
     throw new Error("Only student accounts can apply to programs.");
   }
 

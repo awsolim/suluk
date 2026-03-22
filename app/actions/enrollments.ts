@@ -69,8 +69,9 @@ export async function enrollInProgram(formData: FormData) {
 
   const isTeacher = membership?.role === "teacher";
   const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isParent = membership?.role === "parent";
 
-  if (isTeacher || isMosqueAdmin) {
+  if (isTeacher || isMosqueAdmin || isParent) {
     throw new Error("Only student accounts can enroll in programs.");
   }
 

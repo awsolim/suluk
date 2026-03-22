@@ -48,6 +48,15 @@ export function getNavItems(
     return items;
   }
 
+  // Parent
+  if (role === "parent") {
+    return [
+      { label: "Home", href: `/m/${slug}/dashboard`, icon: "home" },
+      { label: "Programs", href: `/m/${slug}/programs`, icon: "programs" },
+      { label: "Settings", href: `/m/${slug}/settings`, icon: "settings" },
+    ];
+  }
+
   // Student
   return [
     { href: `/m/${slug}/dashboard`, icon: "home", label: "Home" },
@@ -61,5 +70,6 @@ export function getRoleLabel(role: string): string {
   if (role === "mosque_admin") return "Admin";
   if (role === "lead_teacher") return "Lead Teacher";
   if (role === "teacher") return "Teacher";
+  if (role === "parent") return "Parent";
   return "Student";
 }

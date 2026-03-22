@@ -1003,3 +1003,91 @@ export async function getTeacherProgramApplicationsInMosque(
 
   return data ?? [];
 }
+
+export async function getActiveTagsForMosque(mosqueId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("programs")
+    .select("tags")
+    .eq("mosque_id", mosqueId)
+    .eq("is_active", true);
+
+  if (!data) return [];
+  const allTags = data.flatMap((p: any) => p.tags || []);
+  return [...new Set(allTags)].sort();
+}
+
+export async function getChildrenForParent(parentProfileId: string, mosqueId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("parent_child_links")
+    .select(`
+      id,
+      child_profile_id,
+      created_at,
+      profiles!parent_child_links_child_profile_id_fkey (
+        id, full_name, date_of_birth, gender, avatar_url
+      )
+    `)
+    .eq("parent_profile_id", parentProfileId)
+    .eq("mosque_id", mosqueId);
+
+  return data || [];
+}
+
+export async function getChildEnrollments(childProfileId: string, mosqueId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("enrollments")
+    .select(`
+      id,
+      created_at,
+      programs (
+        id, title, description, thumbnail_url, schedule, schedule_timezone,
+        mosque_id,
+        teacher_profile_id,
+        profiles!programs_teacher_profile_id_fkey ( full_name, avatar_url )
+      )
+    `)
+    .eq("student_profile_id", childProfileId);
+
+  // PostgREST does not reliably filter parent rows via foreign table dot-notation.
+  // Filter in JS instead, following the pattern in getEnrollmentsForStudentInMosque.
+  return (data || []).filter((e: any) => e.programs?.mosque_id === mosqueId);
+}
+
+export async function getChildApplications(childProfileId: string, mosqueId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("program_applications")
+    .select(`
+      id,
+      status,
+      created_at,
+      programs (
+        id, title, description, thumbnail_url, mosque_id
+      )
+    `)
+    .eq("student_profile_id", childProfileId)
+    .order("created_at", { ascending: false });
+
+  // Filter by mosque in JS — same PostgREST limitation as above.
+  return (data || []).filter((a: any) => a.programs?.mosque_id === mosqueId);
+}
+
+export async function verifyParentChildLink(
+  parentProfileId: string,
+  childProfileId: string,
+  mosqueId: string
+): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("parent_child_links")
+    .select("id")
+    .eq("parent_profile_id", parentProfileId)
+    .eq("child_profile_id", childProfileId)
+    .eq("mosque_id", mosqueId)
+    .single();
+
+  return !!data;
+}

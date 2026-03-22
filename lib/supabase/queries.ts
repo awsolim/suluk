@@ -797,7 +797,7 @@ export async function getProgramSubscriptionForStudent(
   const { data, error } = await supabase
     .from("program_subscriptions")
     .select("*")
-    .eq("student_profile_id", profileId)
+    .eq("profile_id", profileId)
     .eq("program_id", programId)
     .maybeSingle();
 

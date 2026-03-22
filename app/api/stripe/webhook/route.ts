@@ -87,8 +87,9 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
+// Exported for integration testing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleCheckoutCompleted(supabase: any, session: Stripe.Checkout.Session) {
+export async function handleCheckoutCompleted(supabase: any, session: Stripe.Checkout.Session) {
   const programId = session.metadata?.program_id;
   const studentProfileId = session.metadata?.student_profile_id;
   const mosqueId = session.metadata?.mosque_id;
@@ -127,7 +128,7 @@ async function handleCheckoutCompleted(supabase: any, session: Stripe.Checkout.S
     const { data: existingSub } = await supabase
       .from("program_subscriptions")
       .select("id")
-      .eq("student_profile_id", studentProfileId)
+      .eq("profile_id", studentProfileId)
       .eq("program_id", programId)
       .maybeSingle();
 
@@ -140,12 +141,16 @@ async function handleCheckoutCompleted(supabase: any, session: Stripe.Checkout.S
         })
         .eq("id", existingSub.id);
     } else {
-      await supabase.from("program_subscriptions").insert({
-        student_profile_id: studentProfileId,
+      const { error: subInsertError } = await supabase.from("program_subscriptions").insert({
+        profile_id: studentProfileId,
         program_id: programId,
         stripe_subscription_id: subscriptionId,
         status: "active",
       });
+
+      if (subInsertError) {
+        console.error("Failed to create subscription record:", subInsertError.message);
+      }
     }
   }
 }

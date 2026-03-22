@@ -49,13 +49,13 @@ export default async function MosqueHomePage({ params }: PageProps) {
         ];
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col py-6">
+    <main className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-lg flex-col px-4 py-6 md:py-12 lg:max-w-xl">
       <section className="flex flex-1 flex-col justify-center">
         <div
-          className="rounded-3xl border border-gray-200 px-5 py-8 text-center shadow-sm"
+          className="rounded-3xl border border-gray-200 px-6 py-10 text-center shadow-sm md:px-10 md:py-14"
           style={{ backgroundColor: secondaryColor }}
         >
-          <div className="mx-auto h-24 w-24 overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm">
+          <div className="mx-auto h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm md:h-24 md:w-24">
             <img
               src={mosqueLogoSrc}
               alt={mosque.name}
@@ -66,7 +66,7 @@ export default async function MosqueHomePage({ params }: PageProps) {
           <div className="mt-5 space-y-3">
             <p className="text-sm text-gray-500">Welcome to</p>
 
-            <h1 className="text-3xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
               {welcomeTitle}
             </h1>
 

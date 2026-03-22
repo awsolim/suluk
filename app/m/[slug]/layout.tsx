@@ -157,7 +157,7 @@ export default async function TenantLayout({
         } as CSSProperties
       }
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white md:max-w-lg lg:max-w-xl">
+      <div className="mx-auto flex min-h-screen w-full flex-col bg-white">
         <header
           className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur"
           style={{ borderTop: `3px solid ${primaryColor}` }}
@@ -180,7 +180,7 @@ export default async function TenantLayout({
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-5">{children}</main>
+        <main className="flex-1 px-4 py-5 md:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

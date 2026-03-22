@@ -1,219 +1,141 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import {
   getMosqueBySlug,
-  getProgramsByMosqueId,
   getProfileForCurrentUser,
   getMosqueMembershipForUser,
+  getProgramsByMosqueId,
+  getActiveTagsForMosque,
   getEnrollmentsForStudentInMosque,
+  getStudentProgramApplicationsInMosque,
 } from "@/lib/supabase/queries";
-import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
+import { ProgramCard } from "@/components/programs/ProgramCard";
+import { TagFilter } from "@/components/programs/TagFilter";
+import { ProgramSearch } from "@/components/programs/ProgramSearch";
 
-
-type PageProps = {
+export default async function ProgramsPage({
+  params,
+  searchParams,
+}: {
   params: Promise<{ slug: string }>;
-};
-
-const DEFAULT_PROGRAM_THUMBNAIL =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600">
-      <rect width="1200" height="600" fill="#f3f4f6" />
-      <rect x="60" y="60" width="1080" height="480" rx="32" fill="#e5e7eb" />
-      <text
-        x="50%"
-        y="50%"
-        text-anchor="middle"
-        dominant-baseline="middle"
-        font-family="Arial, sans-serif"
-        font-size="42"
-        fill="#6b7280"
-      >
-        Program Image
-      </text>
-    </svg>
-  `);
-
-const DEFAULT_AVATAR =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-      <rect width="200" height="200" rx="100" fill="#e5e7eb" />
-      <circle cx="100" cy="78" r="34" fill="#9ca3af" />
-      <path d="M45 165c10-30 36-46 55-46s45 16 55 46" fill="#9ca3af" />
-    </svg>
-  `);
-
-export default async function ProgramsPage({ params }: PageProps) {
+  searchParams: Promise<{ tag?: string; q?: string }>;
+}) {
   const { slug } = await params;
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { tag, q } = await searchParams;
 
   const mosque = await getMosqueBySlug(slug);
-
-  if (!mosque) {
-    notFound();
-  }
+  if (!mosque) notFound();
 
   const primaryColor = mosque.primary_color || "#111827";
 
-  const programs = await getProgramsByMosqueId(mosque.id);
-
   const profile = await getProfileForCurrentUser();
-
   const membership = profile
     ? await getMosqueMembershipForUser(profile.id, mosque.id)
     : null;
 
-  const isTeacher = membership?.role === "teacher";
-  const isMosqueAdmin = membership?.role === "mosque_admin";
-  const isStudent = Boolean(profile) && !isTeacher && !isMosqueAdmin;
+  const programs = await getProgramsByMosqueId(mosque.id);
+  const tags = await getActiveTagsForMosque(mosque.id);
 
-  const enrollments = isStudent
-    ? await getEnrollmentsForStudentInMosque(profile.id, mosque.id)
-    : [];
+  // For parents, skip enrollment/application lookups
+  const isParent = membership?.role === "parent";
+  const enrollments =
+    !isParent && profile
+      ? await getEnrollmentsForStudentInMosque(profile.id, mosque.id)
+      : [];
+  const applications =
+    !isParent && profile
+      ? await getStudentProgramApplicationsInMosque(profile.id, mosque.id)
+      : [];
 
+  // Build lookup sets — both queries return program_id directly on each row
   const enrolledProgramIds = new Set(
-    enrollments.map((enrollment) => enrollment.program_id)
+    (enrollments || []).map((e: any) => e.program_id)
+  );
+  const appliedProgramIds = new Set(
+    (applications || []).map((a: any) => a.program_id)
   );
 
+  // Apply filters
+  let filteredPrograms = programs;
+  if (tag) {
+    filteredPrograms = filteredPrograms.filter((p: any) =>
+      p.tags?.includes(tag)
+    );
+  }
+  if (q) {
+    const lower = q.toLowerCase();
+    filteredPrograms = filteredPrograms.filter(
+      (p: any) =>
+        p.title.toLowerCase().includes(lower) ||
+        p.description?.toLowerCase().includes(lower) ||
+        p.profiles?.full_name?.toLowerCase().includes(lower)
+    );
+  }
+
   return (
-    <main className="mx-auto max-w-4xl py-6">
-      <div className="mb-6 space-y-1">
-        <p className="text-sm text-gray-500">{mosque.name}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Programs</h1>
+    <div className="space-y-6 p-4 md:p-6">
+      {/* Header */}
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-foreground">
+          Discover Your Path
+        </h1>
+        <p className="text-muted-foreground">
+          Expand your knowledge through our curated selection of spiritual and
+          academic programs.
+        </p>
       </div>
 
-      {!user ? (
-        <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-sm text-gray-700">
-            You are browsing programs as a guest. Log in or sign up to apply.
-          </p>
-          <div className="mt-3 flex gap-3">
-            <Link
-              href={`/m/${slug}/login`}
-              className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-sm font-medium text-primary-foreground hover:bg-primary/80"
-            >
-              Log In
-            </Link>
-            <Link
-              href={`/m/${slug}/signup`}
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm font-medium hover:bg-gray-50"
-            >
-              Sign Up
-            </Link>
-          </div>
-        </div>
-      ) : null}
+      {/* Search */}
+      <ProgramSearch slug={slug} />
 
-      {programs.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">
-            No programs are available right now.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {programs.map((program) => {
-            const thumbnailSrc = program.thumbnail_url
-              ? supabase.storage.from("media").getPublicUrl(program.thumbnail_url)
-                  .data.publicUrl
-              : DEFAULT_PROGRAM_THUMBNAIL;
+      {/* Tag Filters */}
+      {tags.length > 0 && (
+        <TagFilter tags={tags} slug={slug} primaryColor={primaryColor} />
+      )}
 
-            const teacherAvatarSrc = program.teacher_avatar_url
-              ? supabase.storage
-                  .from("media")
-                  .getPublicUrl(program.teacher_avatar_url).data.publicUrl
-              : DEFAULT_AVATAR;
-
-            const teacherName = program.teacher_name ?? "No teacher assigned";
-            const isEnrolled = enrolledProgramIds.has(program.id);
-
-            const genderTagLabel =
-              program.audience_gender === "male"
-                ? "Brothers"
-                : program.audience_gender === "female"
-                ? "Sisters"
-                : null;
-
-            const genderTagClass =
-              program.audience_gender === "male"
-                ? "bg-blue-100 text-blue-700"
-                : program.audience_gender === "female"
-                ? "bg-pink-100 text-pink-700"
-                : "";
-
-            return (
-              <Link
-                key={program.id}
-                href={`/m/${slug}/programs/${program.id}`}
-                className="block cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
-              >
-                <div className="relative">
-                  <img
-                    src={thumbnailSrc}
-                    alt={`${program.title} thumbnail`}
-                    className={`h-40 w-full object-cover transition ${
-                      isEnrolled ? "brightness-50 blur-[1.5px]" : ""
-                    }`}
-                  />
-
-                  {isEnrolled ? (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <span className="-rotate-12 text-3xl font-extrabold tracking-wide text-green-500 drop-shadow-sm">
-                        ENROLLED
-                      </span>
-                    </div>
-                  ) : null}
-
-                  <div className="absolute -bottom-6 left-4 h-12 w-12 overflow-hidden rounded-full border-2 border-white bg-gray-100 shadow-sm">
-                    <img
-                      src={teacherAvatarSrc}
-                      alt={teacherName}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                </div>
-
-                <article className="flex items-start justify-between p-4 pt-8">
-                  <div className="min-w-0">
-                    <p className="mb-2 text-sm text-gray-500">{teacherName}</p>
-
-                    <h2 className="text-base font-semibold">{program.title}</h2>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {genderTagLabel ? (
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${genderTagClass}`}
-                        >
-                          {genderTagLabel}
-                        </span>
-                      ) : null}
-
-                      {program.age_range_text ? (
-                        <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700">
-                          {program.age_range_text}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {program.description ? (
-                      <p className="mt-3 text-sm leading-6 text-gray-600">
-                        {program.description}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <span className="ml-3 text-lg text-gray-400">›</span>
-                </article>
-              </Link>
-            );
-          })}
+      {/* Guest Banner */}
+      {!profile && (
+        <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+          You are browsing programs as a guest.{" "}
+          <Link
+            href={`/m/${slug}/login`}
+            className="font-medium underline"
+            style={{ color: primaryColor }}
+          >
+            Log in
+          </Link>{" "}
+          or{" "}
+          <Link
+            href={`/m/${slug}/signup`}
+            className="font-medium underline"
+            style={{ color: primaryColor }}
+          >
+            sign up
+          </Link>{" "}
+          to enroll.
         </div>
       )}
-    </main>
+
+      {/* Program Grid */}
+      {filteredPrograms.length === 0 ? (
+        <p className="py-12 text-center text-muted-foreground">
+          No programs found{tag ? ` for "${tag}"` : ""}
+          {q ? ` matching "${q}"` : ""}.
+        </p>
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredPrograms.map((program: any) => (
+            <ProgramCard
+              key={program.id}
+              program={program}
+              slug={slug}
+              isEnrolled={enrolledProgramIds.has(program.id)}
+              hasApplication={appliedProgramIds.has(program.id)}
+              primaryColor={primaryColor}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

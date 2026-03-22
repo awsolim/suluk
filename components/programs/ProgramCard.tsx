@@ -1,6 +1,26 @@
 import Link from "next/link";
 import { Clock } from "lucide-react";
 
+const DEFAULT_PROGRAM_THUMBNAIL =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600">
+      <rect width="1200" height="600" fill="#f3f4f6" />
+      <rect x="60" y="60" width="1080" height="480" rx="32" fill="#e5e7eb" />
+      <text
+        x="50%"
+        y="50%"
+        text-anchor="middle"
+        dominant-baseline="middle"
+        font-family="Arial, sans-serif"
+        font-size="42"
+        fill="#6b7280"
+      >
+        Program Image
+      </text>
+    </svg>
+  `);
+
 interface ProgramCardProps {
   program: {
     id: string;
@@ -62,17 +82,11 @@ export function ProgramCard({
     >
       {/* Image area */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-        {program.thumbnail_url ? (
-          <img
-            src={program.thumbnail_url}
-            alt={program.title}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-muted">
-            <span className="text-4xl text-muted-foreground/30">📚</span>
-          </div>
-        )}
+        <img
+          src={program.thumbnail_url || DEFAULT_PROGRAM_THUMBNAIL}
+          alt={program.title}
+          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+        />
 
         {/* Audience badges - top left */}
         <div className="absolute left-2 top-2 flex gap-1">

@@ -13,7 +13,7 @@ export function ProgramSearch({ slug }: ProgramSearchProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const query = searchParams.get("q") || "";
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const handleSearch = useCallback(
     (value: string) => {

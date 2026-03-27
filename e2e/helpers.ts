@@ -36,6 +36,12 @@ export const TEST_PARENT = {
   fullName: 'Test Parent',
 };
 
+export const TEST_TEACHER_REQUESTER = {
+  email: 'teacher-requester-e2e@test.suluk.dev',
+  password: 'test-password-123!',
+  fullName: 'Test Teacher Requester',
+};
+
 /**
  * Creates a Supabase service client for test data operations.
  * Uses env vars that must be available at test time.
@@ -98,4 +104,15 @@ export async function loginAsStudent(page: Page) {
  */
 export async function loginAsParent(page: Page) {
   await login(page, TEST_PARENT.email, TEST_PARENT.password);
+}
+
+/**
+ * Logs in via the global login page (not mosque-scoped).
+ */
+export async function globalLogin(page: Page, email: string, password: string) {
+  await page.goto('/login');
+  await page.getByLabel(/email/i).fill(email);
+  await page.getByLabel(/password/i).fill(password);
+  await page.getByRole('button', { name: /log in|login/i }).click();
+  await page.waitForURL('**/', { timeout: 10000 });
 }

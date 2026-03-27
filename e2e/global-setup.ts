@@ -1,4 +1,4 @@
-import { createTestSupabaseClient, TEST_MOSQUE_SLUG, TEST_MOSQUE_NAME, TEST_ADMIN, TEST_TEACHER, TEST_STUDENT, TEST_PARENT } from './helpers';
+import { createTestSupabaseClient, TEST_MOSQUE_SLUG, TEST_MOSQUE_NAME, TEST_ADMIN, TEST_TEACHER, TEST_STUDENT, TEST_PARENT, TEST_TEACHER_REQUESTER } from './helpers';
 
 /**
  * Global setup for Playwright tests.
@@ -30,6 +30,7 @@ export default async function globalSetup() {
       (await supabase.from('programs').select('id').eq('mosque_id', existingMosque.id)).data?.map(p => p.id) ?? []
     );
     await supabase.from('parent_child_links').delete().eq('mosque_id', existingMosque.id);
+    await supabase.from('teacher_join_requests').delete().eq('mosque_id', existingMosque.id);
     await supabase.from('programs').delete().eq('mosque_id', existingMosque.id);
     await supabase.from('mosque_memberships').delete().eq('mosque_id', existingMosque.id);
     await supabase.from('mosques').delete().eq('id', existingMosque.id);
@@ -83,6 +84,11 @@ export default async function globalSetup() {
   const teacherUser = await createUser(TEST_TEACHER.email, TEST_TEACHER.password, TEST_TEACHER.fullName);
   const studentUser = await createUser(TEST_STUDENT.email, TEST_STUDENT.password, TEST_STUDENT.fullName);
   const parentUser = await createUser(TEST_PARENT.email, TEST_PARENT.password, TEST_PARENT.fullName);
+  const teacherRequesterUser = await createUser(
+    TEST_TEACHER_REQUESTER.email,
+    TEST_TEACHER_REQUESTER.password,
+    TEST_TEACHER_REQUESTER.fullName
+  );
 
   // Create a child profile (no auth user — child profiles are auth-less per migration)
   const { data: childProfile } = await supabase
@@ -195,6 +201,7 @@ export default async function globalSetup() {
   process.env.TEST_TEACHER_ID = teacherUser.id;
   process.env.TEST_STUDENT_ID = studentUser.id;
   process.env.TEST_PARENT_ID = parentUser.id;
+  process.env.TEST_TEACHER_REQUESTER_ID = teacherRequesterUser.id;
   process.env.TEST_CHILD_ID = childProfile?.id ?? '';
   process.env.TEST_FREE_PROGRAM_ID = freeProgram?.id ?? '';
   process.env.TEST_PAID_PROGRAM_ID = paidProgram?.id ?? '';

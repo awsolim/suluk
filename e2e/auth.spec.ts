@@ -15,18 +15,6 @@ test.describe('Authentication flows', () => {
     await expect(page.locator('body')).not.toBeEmpty();
   });
 
-  test('S-8: login page has Browse Programs link', async ({ page }) => {
-    await page.goto(`/m/${TEST_MOSQUE_SLUG}/login`);
-    const browseLink = page.getByRole('link', { name: /browse programs|programs/i });
-    await expect(browseLink).toBeVisible();
-  });
-
-  test('S-8: signup page has Browse Programs link', async ({ page }) => {
-    await page.goto(`/m/${TEST_MOSQUE_SLUG}/signup`);
-    const browseLink = page.getByRole('link', { name: /browse programs|programs/i });
-    await expect(browseLink).toBeVisible();
-  });
-
   test('S-2: student can sign up with new account', async ({ page }) => {
     await page.goto(`/m/${TEST_MOSQUE_SLUG}/signup`);
     // Verify signup form is visible

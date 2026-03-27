@@ -30,18 +30,36 @@ export default async function TenantLayout({
   children,
   params,
 }: TenantLayoutProps) {
-  const { slug } = await params;
+  let slug: string;
+  try {
+    slug = (await params).slug;
+  } catch (e) {
+    throw new Error(`Layout params error: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
-  const mosque = await getMosqueBySlug(slug);
+  let mosque;
+  try {
+    mosque = await getMosqueBySlug(slug);
+  } catch (e) {
+    throw new Error(`getMosqueBySlug error for "${slug}": ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   if (!mosque) {
     notFound();
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let supabase;
+  let user;
+  try {
+    supabase = await createClient();
+    const { data, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      throw authError;
+    }
+    user = data.user;
+  } catch (e) {
+    throw new Error(`Auth error in layout: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   const mosqueLogoSrc = mosque.logo_url
     ? supabase.storage.from("media").getPublicUrl(mosque.logo_url).data.publicUrl
@@ -52,10 +70,16 @@ export default async function TenantLayout({
 
   // For authenticated users, load profile and membership for AppShell
   if (user) {
-    const profile = await getProfileForCurrentUser();
-    const membership = profile
-      ? await getMosqueMembershipForUser(profile.id, mosque.id)
-      : null;
+    let profile;
+    let membership;
+    try {
+      profile = await getProfileForCurrentUser();
+      membership = profile
+        ? await getMosqueMembershipForUser(profile.id, mosque.id)
+        : null;
+    } catch (e) {
+      throw new Error(`Profile/membership error: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     const role = membership?.role ?? "student";
 

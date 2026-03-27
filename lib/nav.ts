@@ -27,6 +27,7 @@ export function getNavItems(
       { href: `/m/${slug}/admin/programs`, icon: "programs", label: "Programs" },
       { href: `/m/${slug}/admin/programs/new`, icon: "new-program", label: "New Program" },
       { href: `/m/${slug}/admin/members`, icon: "members", label: "Members" },
+      { href: `/m/${slug}/admin/teacher-requests`, icon: "members", label: "Teacher Requests" },
       { href: `/m/${slug}/settings`, icon: "settings", label: "Settings" },
     ];
   }

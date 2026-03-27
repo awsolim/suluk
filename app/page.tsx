@@ -16,6 +16,22 @@ const DEFAULT_MOSQUE_LOGO =
   `);
 
 export default async function HomePage() {
+  try {
+    return await HomePageInner();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return (
+      <main className="mx-auto max-w-sm px-4 py-12">
+        <h1 className="text-2xl font-semibold">Homepage Error</h1>
+        <pre className="mt-4 whitespace-pre-wrap rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {msg}
+        </pre>
+      </main>
+    );
+  }
+}
+
+async function HomePageInner() {
   const supabase = await createClient();
   const mosques = await getAllMosques();
 

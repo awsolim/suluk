@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
+import { isAdminOrTeacher } from "@/lib/permissions";
 
 /**
  * Create a new program for the current mosque.
@@ -236,10 +237,7 @@ export async function updateProgram(formData: FormData) {
     throw new Error(`Failed to verify program management access: ${membershipError.message}`);
   }
 
-  const isMosqueAdmin = membership?.role === "mosque_admin";
-  const isTeacher = membership?.role === "teacher";
-  const canManagePrograms =
-    isMosqueAdmin || (isTeacher && membership?.can_manage_programs);
+  const canManagePrograms = isAdminOrTeacher(membership?.role);
 
   if (!canManagePrograms) {
     notFound();
@@ -436,8 +434,8 @@ export async function deleteProgram(programId: string, mosqueId: string) {
     return { error: `Could not verify admin access: ${membershipError.message}` };
   }
 
-  if (membership?.role !== "mosque_admin") {
-    return { error: "Only mosque admins can delete programs." };
+  if (!isAdminOrTeacher(membership?.role)) {
+    return { error: "Only admins and teachers can delete programs." };
   }
 
   // Verify program belongs to this mosque

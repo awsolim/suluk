@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isAdminOrTeacher } from "@/lib/permissions";
 
 export async function createProgramAnnouncement(formData: FormData) {
   const slug = String(formData.get("slug") ?? "").trim(); // Read the mosque slug so redirects stay tenant-scoped.
@@ -52,8 +53,8 @@ export async function createProgramAnnouncement(formData: FormData) {
     .eq("mosque_id", mosque.id)
     .maybeSingle(); // Confirm the current user is a teacher in this mosque.
 
-  if (membershipError || !membership || membership.role !== "teacher") {
-    throw new Error("Only teachers can post announcements.");
+  if (membershipError || !membership || !isAdminOrTeacher(membership.role)) {
+    throw new Error("Only admins and teachers can post announcements.");
   }
 
   const { data: program, error: programError } = await supabase

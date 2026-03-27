@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
+import { isAdminOrTeacher } from "@/lib/permissions";
 
 export async function enrollInProgram(formData: FormData) {
   const slug = String(formData.get("slug") ?? "").trim();
@@ -244,12 +245,7 @@ export async function removeStudentFromProgram(
     return { error: `Could not verify membership: ${membershipError.message}` };
   }
 
-  const isMosqueAdmin = membership?.role === "mosque_admin";
-  const isTeacherOfProgram =
-    (membership?.role === "teacher" || membership?.role === "lead_teacher") &&
-    program.teacher_profile_id === profile.id;
-
-  if (!isMosqueAdmin && !isTeacherOfProgram) {
+  if (!isAdminOrTeacher(membership?.role)) {
     return { error: "You do not have permission to remove students from this program." };
   }
 

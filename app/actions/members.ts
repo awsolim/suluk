@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { isAdminOrTeacher, TEACHER_ASSIGNABLE_ROLES, PROTECTED_ROLES } from "@/lib/permissions";
 
 export async function changeMemberRole(
   membershipId: string,
@@ -40,8 +41,16 @@ export async function changeMemberRole(
     return { error: `Could not verify admin access: ${callerMembershipError.message}` };
   }
 
-  if (callerMembership?.role !== "mosque_admin") {
-    return { error: "Only mosque admins can change member roles." };
+  if (!isAdminOrTeacher(callerMembership?.role)) {
+    return { error: "Only admins and teachers can change member roles." };
+  }
+
+  // Teachers can only assign student or parent roles
+  if (
+    callerMembership?.role !== "mosque_admin" &&
+    !TEACHER_ASSIGNABLE_ROLES.includes(newRole as any)
+  ) {
+    return { error: "Teachers can only assign student or parent roles." };
   }
 
   const validRoles = ["student", "teacher", "lead_teacher", "mosque_admin"];
@@ -185,8 +194,8 @@ export async function removeMemberFromMosque(
     return { error: `Could not verify admin access: ${callerMembershipError.message}` };
   }
 
-  if (callerMembership?.role !== "mosque_admin") {
-    return { error: "Only mosque admins can remove members." };
+  if (!isAdminOrTeacher(callerMembership?.role)) {
+    return { error: "Only admins and teachers can remove members." };
   }
 
   // Get the target membership to find their profile_id
@@ -199,6 +208,23 @@ export async function removeMemberFromMosque(
 
   if (targetError || !targetMembership) {
     return { error: "Membership not found." };
+  }
+
+  // Teachers cannot remove other teachers or admins
+  if (callerMembership?.role !== "mosque_admin") {
+    const { data: targetMembershipRole } = await supabase
+      .from("mosque_memberships")
+      .select("role")
+      .eq("id", membershipId)
+      .eq("mosque_id", mosqueId)
+      .maybeSingle();
+
+    if (
+      targetMembershipRole &&
+      PROTECTED_ROLES.includes(targetMembershipRole.role as any)
+    ) {
+      return { error: "Teachers cannot remove other teachers or admins." };
+    }
   }
 
   // Delete any enrollments for this user's programs in this mosque

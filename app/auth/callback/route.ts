@@ -1,15 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+/**
+ * Build the correct redirect base URL, accounting for load balancers /
+ * reverse proxies (e.g. Netlify) that set x-forwarded-host.
+ */
+export function getRedirectBase(request: NextRequest, origin: string): string {
+  const isLocalEnv = process.env.NODE_ENV === "development";
+  if (isLocalEnv) return origin;
+
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  if (forwardedHost) return `https://${forwardedHost}`;
+
+  return origin;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  let next = searchParams.get("next") ?? "/";
   const slug = searchParams.get("slug");
-  const role = searchParams.get("role");
+
+  // Ensure `next` is always a relative path to prevent open-redirect attacks
+  if (!next.startsWith("/")) {
+    next = "/";
+  }
+
+  const base = getRedirectBase(request, origin);
 
   if (!code) {
-    return NextResponse.redirect(new URL(next, origin));
+    return NextResponse.redirect(new URL(next, base));
   }
 
   // Collect cookies set during the exchange so they land on the final redirect
@@ -49,7 +69,7 @@ export async function GET(request: NextRequest) {
     const errorPath = slug
       ? `/m/${slug}/login?error=${encodeURIComponent(error.message)}`
       : `/login?error=${encodeURIComponent(error.message)}`;
-    return NextResponse.redirect(new URL(errorPath, origin));
+    return NextResponse.redirect(new URL(errorPath, base));
   }
 
   // --- Post-auth: profile upsert + membership logic ---
@@ -70,7 +90,7 @@ export async function GET(request: NextRequest) {
       email: user.email ?? null,
     });
 
-    // Mosque-scoped login: check membership, redirect new users to role selection
+    // Mosque-scoped login: check membership, auto-join new users as student
     if (slug) {
       const { data: mosque } = await supabase
         .from("mosques")
@@ -87,14 +107,12 @@ export async function GET(request: NextRequest) {
           .maybeSingle();
 
         if (!existing) {
-          // New user for this mosque — let them choose their role
-          const res = NextResponse.redirect(
-            new URL(`/m/${slug}/choose-role`, origin),
-          );
-          responseCookies.forEach(({ name, value, options }) =>
-            res.cookies.set(name, value, options),
-          );
-          return res;
+          // Auto-join as student so the user is immediately logged into the mosque
+          await supabase.from("mosque_memberships").insert({
+            mosque_id: mosque.id,
+            profile_id: user.id,
+            role: "student",
+          });
         }
       }
     }
@@ -108,9 +126,7 @@ export async function GET(request: NextRequest) {
         .limit(1);
 
       if (!memberships || memberships.length === 0) {
-        const res = NextResponse.redirect(
-          new URL("/create-masjid", origin),
-        );
+        const res = NextResponse.redirect(new URL("/create-masjid", base));
         responseCookies.forEach(({ name, value, options }) =>
           res.cookies.set(name, value, options),
         );
@@ -120,7 +136,7 @@ export async function GET(request: NextRequest) {
   }
 
   // --- Redirect to the final destination with session cookies ---
-  const response = NextResponse.redirect(new URL(next, origin));
+  const response = NextResponse.redirect(new URL(next, base));
   responseCookies.forEach(({ name, value, options }) =>
     response.cookies.set(name, value, options),
   );

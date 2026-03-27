@@ -1160,6 +1160,24 @@ export async function getTeacherRequestForUser(
 }
 
 /**
+ * Get all teacher join requests for a user across all mosques.
+ */
+export async function getTeacherRequestsForUser(profileId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("teacher_join_requests")
+    .select("mosque_id, status")
+    .eq("profile_id", profileId);
+
+  if (error) {
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
  * Get all mosque memberships for a given user (across all mosques).
  */
 export async function getMembershipsForUser(profileId: string) {

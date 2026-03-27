@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { getAllMosques, getMembershipsForUser } from "@/lib/supabase/queries";
+import {
+  getAllMosques,
+  getMembershipsForUser,
+  getProfileForCurrentUser,
+  getTeacherRequestsForUser,
+} from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
-import { getProfileForCurrentUser } from "@/lib/supabase/queries";
 import { JoinAsTeacherButton } from "@/components/masjid/JoinAsTeacherButton";
 import { StopPropagation } from "@/components/StopPropagation";
 
@@ -32,6 +36,13 @@ export default async function HomePage() {
     ? await getMembershipsForUser(profile.id)
     : [];
   const memberMosqueIds = new Set(userMemberships.map((m) => m.mosque_id));
+
+  const teacherRequests = isLoggedIn && profile
+    ? await getTeacherRequestsForUser(profile.id)
+    : [];
+  const teacherRequestByMosque = new Map(
+    teacherRequests.map((r) => [r.mosque_id, r.status])
+  );
 
   return (
     <main className="mx-auto max-w-md px-4 py-6">
@@ -99,7 +110,10 @@ export default async function HomePage() {
 
                   {isLoggedIn && !memberMosqueIds.has(mosque.id) ? (
                     <StopPropagation className="ml-auto shrink-0">
-                      <JoinAsTeacherButton mosqueId={mosque.id} />
+                      <JoinAsTeacherButton
+                        mosqueId={mosque.id}
+                        initialStatus={teacherRequestByMosque.get(mosque.id) ?? null}
+                      />
                     </StopPropagation>
                   ) : null}
                 </div>

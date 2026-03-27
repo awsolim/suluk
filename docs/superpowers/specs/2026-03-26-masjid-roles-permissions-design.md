@@ -5,7 +5,7 @@
 
 ## Overview
 
-Add three capabilities to the Suluk platform:
+Add three capabilities to the Tareeqah platform:
 1. Any authenticated user can create a new masjid and become its admin
 2. Teachers can browse masjids and request to join, with admin approval
 3. Teachers have co-admin permissions except for teacher management and mosque settings

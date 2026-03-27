@@ -48,7 +48,7 @@ beforeAll(async () => {
   testMosqueId = mosque.id;
 
   // New user (simulates first-time Google OAuth)
-  newUserEmail = `handler-new-${Date.now()}@test.suluk.dev`;
+  newUserEmail = `handler-new-${Date.now()}@test.tareeqah.dev`;
   const { data: u1, error: e1 } = await supabase.auth.admin.createUser({
     email: newUserEmail,
     password: "test-password-123!",
@@ -59,7 +59,7 @@ beforeAll(async () => {
   newUserId = u1.user.id;
 
   // Existing admin user
-  existingUserEmail = `handler-admin-${Date.now()}@test.suluk.dev`;
+  existingUserEmail = `handler-admin-${Date.now()}@test.tareeqah.dev`;
   const { data: u2, error: e2 } = await supabase.auth.admin.createUser({
     email: existingUserEmail,
     password: "test-password-123!",
@@ -293,7 +293,7 @@ describe("#22: auto-join new OAuth user as student", () => {
 
   it("redirects to /create-masjid for global signup with no memberships", async () => {
     // Create a truly fresh user with zero memberships anywhere
-    const freshEmail = `handler-fresh-${Date.now()}@test.suluk.dev`;
+    const freshEmail = `handler-fresh-${Date.now()}@test.tareeqah.dev`;
     const { data: freshUser } = await supabase.auth.admin.createUser({
       email: freshEmail,
       password: "test-password-123!",

@@ -42,7 +42,7 @@
 - `lib/nav.ts:16-65` — add parent branch to getNavItems and getRoleLabel
 - `lib/supabase/queries.ts` — add tag query, parent-child queries
 - `types/database.ts` — add parent_child_links type, tags to programs, date_of_birth to profiles, parent to role union
-- `components/Sidebar.tsx` — mosque-first branding, "Powered by Suluk" footer
+- `components/Sidebar.tsx` — mosque-first branding, "Powered by Tareeqah" footer
 - `components/BottomNav.tsx:28-64` — add parent nav branch
 - `components/BottomNavClient.tsx` — add parent icon
 - `app/m/[slug]/programs/page.tsx` — full redesign with search + tags + new cards
@@ -825,19 +825,19 @@ git commit -m "style: shift to warm cream base palette"
 In `components/Sidebar.tsx`, restructure the sidebar header:
 
 1. **Top section:** Mosque logo (existing) + Mosque name in large text + "Community Portal" subtitle below it
-2. **Bottom of sidebar (new):** Small "Powered by Suluk" text with muted styling
+2. **Bottom of sidebar (new):** Small "Powered by Tareeqah" text with muted styling
 
 The sidebar already receives `mosqueName` and `mosqueLogoSrc` as props. Update the JSX:
 
-- Replace any "Suluk" branding with the mosque name
-- Add a small footer div at the bottom with `text-xs text-muted-foreground` showing "Powered by Suluk"
+- Replace any "Tareeqah" branding with the mosque name
+- Add a small footer div at the bottom with `text-xs text-muted-foreground` showing "Powered by Tareeqah"
 - Keep the nav items and profile section as-is
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add components/Sidebar.tsx
-git commit -m "style: mosque-first sidebar branding with 'Powered by Suluk' footer"
+git commit -m "style: mosque-first sidebar branding with 'Powered by Tareeqah' footer"
 ```
 
 ---
@@ -1676,7 +1676,7 @@ Note: The project already has Playwright configured with a root `playwright.conf
 In `e2e/helpers.ts`, add:
 ```typescript
 export const TEST_PARENT = {
-  email: "parent-e2e@test.suluk.dev",
+  email: "parent-e2e@test.tareeqah.dev",
   password: "TestPassword123!",
   full_name: "Test Parent",
 };

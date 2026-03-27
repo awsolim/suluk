@@ -71,10 +71,10 @@ beforeAll(async () => {
 
   // Create auth users
   const ts = Date.now();
-  const teacherEmail = `teacher-co-${ts}@test.suluk.dev`;
-  const studentEmail = `student-co-${ts}@test.suluk.dev`;
-  const parentEmail = `parent-co-${ts}@test.suluk.dev`;
-  const childEmail = `child-co-${ts}@test.suluk.dev`;
+  const teacherEmail = `teacher-co-${ts}@test.tareeqah.dev`;
+  const studentEmail = `student-co-${ts}@test.tareeqah.dev`;
+  const parentEmail = `parent-co-${ts}@test.tareeqah.dev`;
+  const childEmail = `child-co-${ts}@test.tareeqah.dev`;
   testEmails.push(teacherEmail, studentEmail, parentEmail, childEmail);
 
   const teacherUser = await createAuthUser(supabase, teacherEmail, "TestPass123!", "CO Teacher");

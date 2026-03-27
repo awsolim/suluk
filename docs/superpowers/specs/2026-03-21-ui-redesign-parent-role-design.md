@@ -5,7 +5,7 @@
 
 ## Guiding Principle: Mosque-First Branding
 
-The app must feel like **the mosque's app**, powered by Suluk. Every user-facing surface uses the mosque's name, logo, and accent color as primary branding. "Powered by Suluk" appears only in small text at the bottom of the sidebar.
+The app must feel like **the mosque's app**, powered by Tareeqah. Every user-facing surface uses the mosque's name, logo, and accent color as primary branding. "Powered by Tareeqah" appears only in small text at the bottom of the sidebar.
 
 ---
 
@@ -29,7 +29,7 @@ The app must feel like **the mosque's app**, powered by Suluk. Every user-facing
 
 ### Sidebar Branding Hierarchy
 - **Top:** Mosque logo + Mosque name (large) + "Community Portal" subtitle
-- **Bottom (small text):** "Powered by Suluk"
+- **Bottom (small text):** "Powered by Tareeqah"
 
 ---
 

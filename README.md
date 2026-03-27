@@ -1,4 +1,4 @@
-# Suluk
+# Tareeqah
 
 A white-label platform that lets mosques and Islamic schools run their own branded "masjid app" for managing Quran students. Each organization gets its own tenant portal where students can browse programs, enroll, and pay — while teachers and admins manage classes, rosters, and announcements.
 
@@ -6,7 +6,7 @@ Think of it like this: a student downloads/visits the "As-Siddiq app" (or any mo
 
 ## How It Works
 
-Suluk is a **multi-tenant** application. Each mosque gets its own URL namespace (`/m/{slug}`) with its own branding (logo, colors, welcome message). All mosques share the same codebase and database, isolated by tenant.
+Tareeqah is a **multi-tenant** application. Each mosque gets its own URL namespace (`/m/{slug}`) with its own branding (logo, colors, welcome message). All mosques share the same codebase and database, isolated by tenant.
 
 ### User Roles
 
@@ -96,8 +96,8 @@ types/
 
 1. **Clone the repo**
    ```bash
-   git clone git@github.com:awsolim/suluk.git
-   cd suluk
+   git clone git@github.com:awsolim/tareeqah.git
+   cd tareeqah
    ```
 
 2. **Install dependencies**

@@ -22,7 +22,7 @@ test.describe('Masjid creation flow', () => {
   test('US-M1: logged-in user sees Create a Masjid button on directory', async ({ page }) => {
     // Log in via global login first
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill('admin-e2e@test.suluk.dev');
+    await page.getByLabel(/email/i).fill('admin-e2e@test.tareeqah.dev');
     await page.getByLabel(/password/i).fill('test-password-123!');
     await page.getByRole('button', { name: /log in|login/i }).click();
     await page.waitForURL('**/', { timeout: 10000 });
@@ -45,7 +45,7 @@ test.describe('Masjid creation flow', () => {
   test('US-M1: create masjid form has required fields', async ({ page }) => {
     // Log in first
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill('admin-e2e@test.suluk.dev');
+    await page.getByLabel(/email/i).fill('admin-e2e@test.tareeqah.dev');
     await page.getByLabel(/password/i).fill('test-password-123!');
     await page.getByRole('button', { name: /log in|login/i }).click();
     await page.waitForURL('**/', { timeout: 10000 });

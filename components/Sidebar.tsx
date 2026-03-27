@@ -87,7 +87,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground px-4 py-2">Powered by Suluk</p>
+      <p className="text-xs text-muted-foreground px-4 py-2">Powered by Tareeqah</p>
     </div>
   );
 }

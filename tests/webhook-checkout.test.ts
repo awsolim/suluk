@@ -59,9 +59,9 @@ beforeAll(async () => {
   supabase = getServiceClient();
 
   // Create auth users (profiles are auto-created by Supabase trigger or we upsert them)
-  const teacherEmail = `teacher-wh-${Date.now()}@test.suluk.dev`;
-  const studentEmail = `student-wh-${Date.now()}@test.suluk.dev`;
-  const parentEmail = `parent-wh-${Date.now()}@test.suluk.dev`;
+  const teacherEmail = `teacher-wh-${Date.now()}@test.tareeqah.dev`;
+  const studentEmail = `student-wh-${Date.now()}@test.tareeqah.dev`;
+  const parentEmail = `parent-wh-${Date.now()}@test.tareeqah.dev`;
   testEmails.push(teacherEmail, studentEmail, parentEmail);
 
   const teacherUser = await createAuthUser(supabase, teacherEmail, "TestPass123!", "WH Teacher");
@@ -89,7 +89,7 @@ beforeAll(async () => {
   });
   if (childErr) {
     // FK constraint still exists — create an auth user for the child
-    const childEmail = `child-wh-${Date.now()}@test.suluk.dev`;
+    const childEmail = `child-wh-${Date.now()}@test.tareeqah.dev`;
     testEmails.push(childEmail);
     const childUser = await createAuthUser(supabase, childEmail, "TestPass123!", "WH Child");
     childId = childUser.id;
@@ -325,7 +325,7 @@ describe("handleCheckoutCompleted", () => {
 
   it("handles checkout without subscription (one-time payment)", async () => {
     // Create a fresh student for this test
-    const oneTimeEmail = `onetime-wh-${Date.now()}@test.suluk.dev`;
+    const oneTimeEmail = `onetime-wh-${Date.now()}@test.tareeqah.dev`;
     const oneTimeUser = await createAuthUser(supabase, oneTimeEmail, "TestPass123!", "One Time Student");
     const oneTimeStudentId = oneTimeUser.id;
     testEmails.push(oneTimeEmail);

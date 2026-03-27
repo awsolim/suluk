@@ -110,7 +110,7 @@ export default async function TenantLayout({
                 <p className="truncate text-lg font-semibold tracking-tight">
                   {mosque.name}
                 </p>
-                <p className="mt-1 text-xs text-gray-500">Powered by Suluk</p>
+                <p className="mt-1 text-xs text-gray-500">Powered by Tareeqah</p>
               </div>
             </div>
           </header>
@@ -133,7 +133,7 @@ export default async function TenantLayout({
                 <p className="truncate text-lg font-semibold tracking-tight">
                   {mosque.name}
                 </p>
-                <p className="mt-1 text-xs text-gray-500">Powered by Suluk</p>
+                <p className="mt-1 text-xs text-gray-500">Powered by Tareeqah</p>
               </div>
             </div>
           </header>
@@ -175,7 +175,7 @@ export default async function TenantLayout({
               <p className="truncate text-lg font-semibold tracking-tight">
                 {mosque.name}
               </p>
-              <p className="mt-1 text-xs text-gray-500">Powered by Suluk</p>
+              <p className="mt-1 text-xs text-gray-500">Powered by Tareeqah</p>
             </div>
           </div>
         </header>

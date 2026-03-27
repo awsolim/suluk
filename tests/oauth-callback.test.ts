@@ -38,7 +38,7 @@ describe("OAuth callback: profile and membership logic", () => {
     testMosqueId = mosque.id;
 
     // Create a test user (simulates what happens after Google OAuth)
-    const email1 = `oauth-new-${Date.now()}@test.suluk.dev`;
+    const email1 = `oauth-new-${Date.now()}@test.tareeqah.dev`;
     const { data: user1, error: user1Error } = await supabase.auth.admin.createUser({
       email: email1,
       password: "test-password-123!",
@@ -49,7 +49,7 @@ describe("OAuth callback: profile and membership logic", () => {
     testUserId = user1.user.id;
 
     // Create a second user who already has a membership
-    const email2 = `oauth-existing-${Date.now()}@test.suluk.dev`;
+    const email2 = `oauth-existing-${Date.now()}@test.tareeqah.dev`;
     const { data: user2, error: user2Error } = await supabase.auth.admin.createUser({
       email: email2,
       password: "test-password-123!",
@@ -166,7 +166,7 @@ describe("OAuth callback: profile and membership logic", () => {
 
   it("detects new user with no memberships for create-masjid redirect", async () => {
     // Create a brand new user with no memberships
-    const email = `oauth-brand-new-${Date.now()}@test.suluk.dev`;
+    const email = `oauth-brand-new-${Date.now()}@test.tareeqah.dev`;
     const { data: newUser } = await supabase.auth.admin.createUser({
       email,
       password: "test-password-123!",
@@ -198,7 +198,7 @@ describe("OAuth callback: profile and membership logic", () => {
   });
 
   it("assigns parent role when role=parent is specified", async () => {
-    const email = `oauth-parent-${Date.now()}@test.suluk.dev`;
+    const email = `oauth-parent-${Date.now()}@test.tareeqah.dev`;
     const { data: parentUser } = await supabase.auth.admin.createUser({
       email,
       password: "test-password-123!",

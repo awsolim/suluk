@@ -36,7 +36,7 @@ describe("Approve teacher request for existing student member", () => {
 
     // Create admin user
     const { data: admin } = await supabase.auth.admin.createUser({
-      email: `approve-admin-${Date.now()}@test.suluk.dev`,
+      email: `approve-admin-${Date.now()}@test.tareeqah.dev`,
       password: "test-password-123!",
       email_confirm: true,
     });
@@ -54,7 +54,7 @@ describe("Approve teacher request for existing student member", () => {
 
     // Create student user — already has a student membership
     const { data: student } = await supabase.auth.admin.createUser({
-      email: `approve-student-${Date.now()}@test.suluk.dev`,
+      email: `approve-student-${Date.now()}@test.tareeqah.dev`,
       password: "test-password-123!",
       email_confirm: true,
     });

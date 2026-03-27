@@ -1,4 +1,4 @@
-# Suluk User Stories
+# Tareeqah User Stories
 
 Stories are referenced by Playwright test files using ID comments (e.g., `// Covers: S-1, S-8, R-5`).
 

@@ -1,4 +1,4 @@
-# Suluk Issues Sprint — Design Spec
+# Tareeqah Issues Sprint — Design Spec
 
 **Date:** 2026-03-19
 **Scope:** Bug fixes (#5, #8, #9), responsive redesign (#2), UI improvements (#7, #14), features (#10, #13), new capabilities (student leave, admin management, teacher permissions), shadcn/ui migration, Playwright test suite

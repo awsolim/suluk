@@ -13,31 +13,31 @@ export const TEST_MOSQUE_SLUG = 'test-mosque-e2e';
 export const TEST_MOSQUE_NAME = 'Test Mosque E2E';
 
 export const TEST_ADMIN = {
-  email: 'admin-e2e@test.suluk.dev',
+  email: 'admin-e2e@test.tareeqah.dev',
   password: 'test-password-123!',
   fullName: 'Test Admin',
 };
 
 export const TEST_TEACHER = {
-  email: 'teacher-e2e@test.suluk.dev',
+  email: 'teacher-e2e@test.tareeqah.dev',
   password: 'test-password-123!',
   fullName: 'Test Teacher',
 };
 
 export const TEST_STUDENT = {
-  email: 'student-e2e@test.suluk.dev',
+  email: 'student-e2e@test.tareeqah.dev',
   password: 'test-password-123!',
   fullName: 'Test Student',
 };
 
 export const TEST_PARENT = {
-  email: 'parent-e2e@test.suluk.dev',
+  email: 'parent-e2e@test.tareeqah.dev',
   password: 'test-password-123!',
   fullName: 'Test Parent',
 };
 
 export const TEST_TEACHER_REQUESTER = {
-  email: 'teacher-requester-e2e@test.suluk.dev',
+  email: 'teacher-requester-e2e@test.tareeqah.dev',
   password: 'test-password-123!',
   fullName: 'Test Teacher Requester',
 };

@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { RoleSelector } from "@/components/auth/RoleSelector";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { AuthDivider } from "@/components/auth/AuthDivider";
 
 type TenantSignupPageProps = {
   params: Promise<{ slug: string }>;
@@ -89,6 +91,12 @@ export default async function TenantSignupPage({
             {error}
           </p>
         ) : null}
+
+        <GoogleSignInButton
+          redirectTo={`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/auth/callback?next=/m/${slug}/dashboard&slug=${slug}&role=student`}
+        />
+
+        <AuthDivider />
 
         <form action={signup} className="space-y-4">
           <input type="hidden" name="slug" value={slug} />

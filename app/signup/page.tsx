@@ -3,6 +3,8 @@ import { globalSignup } from "@/app/actions/global-auth";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { AuthDivider } from "@/components/auth/AuthDivider";
 
 type GlobalSignupPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -30,6 +32,12 @@ export default async function GlobalSignupPage({
             {error}
           </p>
         ) : null}
+
+        <GoogleSignInButton
+          redirectTo={`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/auth/callback?next=/`}
+        />
+
+        <AuthDivider />
 
         <form action={globalSignup} className="space-y-4">
           <div className="space-y-1.5">

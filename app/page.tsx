@@ -18,7 +18,13 @@ const DEFAULT_MOSQUE_LOGO =
 export default async function HomePage() {
   const supabase = await createClient();
   const mosques = await getAllMosques();
-  const profile = await getProfileForCurrentUser();
+
+  let profile = null;
+  try {
+    profile = await getProfileForCurrentUser();
+  } catch {
+    // Corrupted auth session — treat as logged out
+  }
   const isLoggedIn = !!profile;
 
   const userMemberships = isLoggedIn && profile

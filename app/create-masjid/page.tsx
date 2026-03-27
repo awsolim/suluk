@@ -56,7 +56,7 @@ export default async function CreateMasjidPage({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="slug">URL Slug</Label>
+            <Label htmlFor="slug">Custom URL</Label>
             <Input
               id="slug"
               name="slug"
@@ -68,7 +68,7 @@ export default async function CreateMasjidPage({
               className="h-11"
             />
             <p className="text-xs text-gray-500">
-              Your portal will be at /m/your-slug
+              Your portal will be at tareeqah.ca/m/your-name
             </p>
           </div>
 

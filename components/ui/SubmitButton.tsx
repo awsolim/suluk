@@ -23,7 +23,7 @@ export default function SubmitButton({
       disabled={pending}
       aria-disabled={pending}
       className={`w-full rounded-xl px-4 py-3 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
-      style={{ backgroundColor: "var(--primary-color)", ...style }} // Use the mosque theme color, overridable via style prop.
+      style={{ backgroundColor: "var(--primary-color, #1e293b)", ...style }} // Use the mosque theme color with slate-800 fallback.
     >
       {pending ? pendingText : children}
     </button>

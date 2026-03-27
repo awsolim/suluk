@@ -30,39 +30,6 @@ export default async function TenantLayout({
   children,
   params,
 }: TenantLayoutProps) {
-  try {
-    return await TenantLayoutInner({ children, params });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const stack = e instanceof Error ? e.stack : undefined;
-    return (
-      <div style={{ maxWidth: 500, margin: "3rem auto", padding: "0 1rem" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 600 }}>Layout Error</h1>
-        <pre
-          style={{
-            marginTop: 16,
-            padding: 12,
-            borderRadius: 12,
-            border: "1px solid #fecaca",
-            backgroundColor: "#fef2f2",
-            color: "#b91c1c",
-            fontSize: 13,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {msg}
-          {stack ? `\n\n${stack}` : ""}
-        </pre>
-      </div>
-    );
-  }
-}
-
-async function TenantLayoutInner({
-  children,
-  params,
-}: TenantLayoutProps) {
   const { slug } = await params;
 
   const mosque = await getMosqueBySlug(slug);

@@ -30,36 +30,51 @@ export default async function TenantLayout({
   children,
   params,
 }: TenantLayoutProps) {
-  let slug: string;
   try {
-    slug = (await params).slug;
+    return await TenantLayoutInner({ children, params });
   } catch (e) {
-    throw new Error(`Layout params error: ${e instanceof Error ? e.message : String(e)}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : undefined;
+    return (
+      <div style={{ maxWidth: 500, margin: "3rem auto", padding: "0 1rem" }}>
+        <h1 style={{ fontSize: 24, fontWeight: 600 }}>Layout Error</h1>
+        <pre
+          style={{
+            marginTop: 16,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid #fecaca",
+            backgroundColor: "#fef2f2",
+            color: "#b91c1c",
+            fontSize: 13,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {msg}
+          {stack ? `\n\n${stack}` : ""}
+        </pre>
+      </div>
+    );
   }
+}
 
-  let mosque;
-  try {
-    mosque = await getMosqueBySlug(slug);
-  } catch (e) {
-    throw new Error(`getMosqueBySlug error for "${slug}": ${e instanceof Error ? e.message : String(e)}`);
-  }
+async function TenantLayoutInner({
+  children,
+  params,
+}: TenantLayoutProps) {
+  const { slug } = await params;
+
+  const mosque = await getMosqueBySlug(slug);
 
   if (!mosque) {
     notFound();
   }
 
-  let supabase;
-  let user;
-  try {
-    supabase = await createClient();
-    const { data, error: authError } = await supabase.auth.getUser();
-    if (authError) {
-      throw authError;
-    }
-    user = data.user;
-  } catch (e) {
-    throw new Error(`Auth error in layout: ${e instanceof Error ? e.message : String(e)}`);
-  }
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const mosqueLogoSrc = mosque.logo_url
     ? supabase.storage.from("media").getPublicUrl(mosque.logo_url).data.publicUrl
@@ -70,16 +85,10 @@ export default async function TenantLayout({
 
   // For authenticated users, load profile and membership for AppShell
   if (user) {
-    let profile;
-    let membership;
-    try {
-      profile = await getProfileForCurrentUser();
-      membership = profile
-        ? await getMosqueMembershipForUser(profile.id, mosque.id)
-        : null;
-    } catch (e) {
-      throw new Error(`Profile/membership error: ${e instanceof Error ? e.message : String(e)}`);
-    }
+    const profile = await getProfileForCurrentUser();
+    const membership = profile
+      ? await getMosqueMembershipForUser(profile.id, mosque.id)
+      : null;
 
     const role = membership?.role ?? "student";
 

@@ -1,7 +1,10 @@
 "use server";
 
 import { notFound, redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { stripe } from "@/lib/stripe";
+import { isAdminOrTeacher } from "@/lib/permissions";
 
 /**
  * Create a new program for the current mosque.
@@ -17,6 +20,8 @@ export async function createProgram(formData: FormData) {
   const scheduleRaw = String(formData.get("schedule") || "").trim();
   const scheduleTimezone =
     String(formData.get("schedule_timezone") || "").trim() || "America/Edmonton";
+  const tagsRaw = String(formData.get("tags") || "").trim();
+  const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
   if (!slug || !title) {
     redirect("/");
@@ -164,6 +169,7 @@ export async function createProgram(formData: FormData) {
     teacher_profile_id: teacherProfileId,
     schedule,
     schedule_timezone: scheduleTimezone,
+    tags,
   });
 
   if (insertError) {
@@ -231,10 +237,7 @@ export async function updateProgram(formData: FormData) {
     throw new Error(`Failed to verify program management access: ${membershipError.message}`);
   }
 
-  const isMosqueAdmin = membership?.role === "mosque_admin";
-  const isTeacher = membership?.role === "teacher";
-  const canManagePrograms =
-    isMosqueAdmin || (isTeacher && membership?.can_manage_programs);
+  const canManagePrograms = isAdminOrTeacher(membership?.role);
 
   if (!canManagePrograms) {
     notFound();
@@ -271,6 +274,12 @@ export async function updateProgram(formData: FormData) {
     }
   }
 
+  const isPaid = formData.get("is_paid") === "on";
+  const priceMonthlyCentsRaw = String(formData.get("price_monthly_cents") || "").trim();
+  const priceMonthlyCents = priceMonthlyCentsRaw ? parseInt(priceMonthlyCentsRaw, 10) : null;
+  const tagsRaw = String(formData.get("tags") || "").trim();
+  const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : [];
+
   const { error: updateError } = await supabase
     .from("programs")
     .update({
@@ -278,6 +287,9 @@ export async function updateProgram(formData: FormData) {
       description: description || null,
       is_active: isActive,
       teacher_profile_id: teacherProfileId,
+      is_paid: isPaid,
+      price_monthly_cents: priceMonthlyCents,
+      tags,
     })
     .eq("id", programId)
     .eq("mosque_id", mosque.id);
@@ -335,7 +347,7 @@ export async function updateTeacherProgram(formData: FormData) {
 
   const { data: membership, error: membershipError } = await supabase
     .from("mosque_memberships")
-    .select("role")
+    .select("role, can_manage_programs")
     .eq("profile_id", profile.id)
     .eq("mosque_id", mosque.id)
     .maybeSingle();
@@ -344,7 +356,7 @@ export async function updateTeacherProgram(formData: FormData) {
     throw new Error(`Failed to verify teacher access: ${membershipError.message}`);
   }
 
-  if (!membership || membership.role !== "teacher") {
+  if (!membership || (membership.role !== "teacher" && membership.role !== "lead_teacher")) {
     notFound();
   }
 
@@ -360,12 +372,24 @@ export async function updateTeacherProgram(formData: FormData) {
     notFound();
   }
 
+  // Build the update payload; pricing fields require can_manage_programs
+  const updatePayload: Record<string, unknown> = {
+    title,
+    description: description || null,
+  };
+
+  if (membership.can_manage_programs) {
+    const isPaid = formData.get("is_paid") === "on";
+    const priceMonthlyCentsRaw = String(formData.get("price_monthly_cents") || "").trim();
+    const priceMonthlyCents = priceMonthlyCentsRaw ? parseInt(priceMonthlyCentsRaw, 10) : null;
+
+    updatePayload.is_paid = isPaid;
+    updatePayload.price_monthly_cents = priceMonthlyCents;
+  }
+
   const { error: updateError } = await supabase
     .from("programs")
-    .update({
-      title,
-      description: description || null,
-    })
+    .update(updatePayload)
     .eq("id", programId)
     .eq("mosque_id", mosque.id)
     .eq("teacher_profile_id", profile.id);
@@ -375,4 +399,118 @@ export async function updateTeacherProgram(formData: FormData) {
   }
 
   redirect(`/m/${slug}/teacher/programs/${programId}`);
+}
+
+export async function deleteProgram(programId: string, mosqueId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return { error: "Could not load current profile." };
+  }
+
+  // Verify caller is mosque admin
+  const { data: membership, error: membershipError } = await supabase
+    .from("mosque_memberships")
+    .select("role")
+    .eq("profile_id", profile.id)
+    .eq("mosque_id", mosqueId)
+    .maybeSingle();
+
+  if (membershipError) {
+    return { error: `Could not verify admin access: ${membershipError.message}` };
+  }
+
+  if (!isAdminOrTeacher(membership?.role)) {
+    return { error: "Only admins and teachers can delete programs." };
+  }
+
+  // Verify program belongs to this mosque
+  const { data: program, error: programError } = await supabase
+    .from("programs")
+    .select("id, mosque_id")
+    .eq("id", programId)
+    .eq("mosque_id", mosqueId)
+    .maybeSingle();
+
+  if (programError || !program) {
+    return { error: "Program not found." };
+  }
+
+  // Cancel active Stripe subscriptions for this program
+  const { data: activeSubscriptions } = await supabase
+    .from("program_subscriptions")
+    .select("id, stripe_subscription_id, status")
+    .eq("program_id", programId)
+    .eq("status", "active");
+
+  if (activeSubscriptions && activeSubscriptions.length > 0) {
+    for (const sub of activeSubscriptions) {
+      if (sub.stripe_subscription_id) {
+        await stripe.subscriptions.cancel(sub.stripe_subscription_id);
+      }
+    }
+  }
+
+  // Delete all program_subscriptions for this program
+  await supabase
+    .from("program_subscriptions")
+    .delete()
+    .eq("program_id", programId);
+
+  // Delete all enrollments for this program
+  await supabase
+    .from("enrollments")
+    .delete()
+    .eq("program_id", programId);
+
+  // Delete all program_applications for this program
+  await supabase
+    .from("program_applications")
+    .delete()
+    .eq("program_id", programId);
+
+  // Delete all program_announcements for this program
+  await supabase
+    .from("program_announcements")
+    .delete()
+    .eq("program_id", programId);
+
+  // Delete the program itself
+  const { error: deleteError } = await supabase
+    .from("programs")
+    .delete()
+    .eq("id", programId)
+    .eq("mosque_id", mosqueId);
+
+  if (deleteError) {
+    return { error: `Failed to delete program: ${deleteError.message}` };
+  }
+
+  // Get mosque slug for revalidation and redirect
+  const { data: mosque } = await supabase
+    .from("mosques")
+    .select("slug")
+    .eq("id", mosqueId)
+    .maybeSingle();
+
+  if (mosque?.slug) {
+    revalidatePath(`/m/${mosque.slug}/admin/programs`);
+    redirect(`/m/${mosque.slug}/admin/programs`);
+  }
+
+  return { success: true };
 }

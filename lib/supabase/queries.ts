@@ -869,6 +869,99 @@ export async function getStudentProgramApplicationsInMosque(
   return data ?? [];
 }
 
+export async function getMosqueMembers(mosqueId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("mosque_memberships")
+    .select(`
+      id,
+      mosque_id,
+      profile_id,
+      role,
+      can_manage_programs,
+      created_at,
+      profiles!mosque_memberships_profile_id_fkey (
+        full_name,
+        email,
+        avatar_url
+      )
+    `)
+    .eq("mosque_id", mosqueId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load mosque members: ${error.message}`);
+  }
+
+  return (data ?? []).map((member) => {
+    const profile = Array.isArray(member.profiles)
+      ? member.profiles[0]
+      : member.profiles;
+
+    return {
+      id: member.id,
+      mosque_id: member.mosque_id,
+      profile_id: member.profile_id,
+      role: member.role,
+      can_manage_programs: member.can_manage_programs,
+      created_at: member.created_at,
+      profile: {
+        full_name: profile?.full_name ?? null,
+        email: profile?.email ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+      },
+    };
+  });
+}
+
+export async function getMosqueTeachers(mosqueId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("mosque_memberships")
+    .select(`
+      id,
+      mosque_id,
+      profile_id,
+      role,
+      can_manage_programs,
+      created_at,
+      profiles!mosque_memberships_profile_id_fkey (
+        full_name,
+        email,
+        avatar_url
+      )
+    `)
+    .eq("mosque_id", mosqueId)
+    .in("role", ["teacher", "lead_teacher"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load mosque teachers: ${error.message}`);
+  }
+
+  return (data ?? []).map((member) => {
+    const profile = Array.isArray(member.profiles)
+      ? member.profiles[0]
+      : member.profiles;
+
+    return {
+      id: member.id,
+      mosque_id: member.mosque_id,
+      profile_id: member.profile_id,
+      role: member.role,
+      can_manage_programs: member.can_manage_programs,
+      created_at: member.created_at,
+      profile: {
+        full_name: profile?.full_name ?? null,
+        email: profile?.email ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+      },
+    };
+  });
+}
+
 export async function getTeacherProgramApplicationsInMosque(
   teacherProfileId: string,
   mosqueId: string
@@ -906,6 +999,179 @@ export async function getTeacherProgramApplicationsInMosque(
 
   if (error) {
     throw new Error(`Failed to load teacher applications: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+export async function getActiveTagsForMosque(mosqueId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("programs")
+    .select("tags")
+    .eq("mosque_id", mosqueId)
+    .eq("is_active", true);
+
+  if (!data) return [];
+  const allTags = data.flatMap((p: any) => p.tags || []);
+  return [...new Set(allTags)].sort();
+}
+
+export async function getChildrenForParent(parentProfileId: string, mosqueId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("parent_child_links")
+    .select(`
+      id,
+      child_profile_id,
+      created_at,
+      profiles!parent_child_links_child_profile_id_fkey (
+        id, full_name, date_of_birth, gender, avatar_url
+      )
+    `)
+    .eq("parent_profile_id", parentProfileId)
+    .eq("mosque_id", mosqueId);
+
+  return data || [];
+}
+
+export async function getChildEnrollments(childProfileId: string, mosqueId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("enrollments")
+    .select(`
+      id,
+      created_at,
+      programs (
+        id, title, description, thumbnail_url, schedule, schedule_timezone,
+        mosque_id,
+        teacher_profile_id,
+        profiles!programs_teacher_profile_id_fkey ( full_name, avatar_url )
+      )
+    `)
+    .eq("student_profile_id", childProfileId);
+
+  // PostgREST does not reliably filter parent rows via foreign table dot-notation.
+  // Filter in JS instead, following the pattern in getEnrollmentsForStudentInMosque.
+  return (data || []).filter((e: any) => e.programs?.mosque_id === mosqueId);
+}
+
+export async function getChildApplications(childProfileId: string, mosqueId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("program_applications")
+    .select(`
+      id,
+      status,
+      created_at,
+      programs (
+        id, title, description, thumbnail_url, mosque_id
+      )
+    `)
+    .eq("student_profile_id", childProfileId)
+    .order("created_at", { ascending: false });
+
+  // Filter by mosque in JS — same PostgREST limitation as above.
+  return (data || []).filter((a: any) => a.programs?.mosque_id === mosqueId);
+}
+
+export async function verifyParentChildLink(
+  parentProfileId: string,
+  childProfileId: string,
+  mosqueId: string
+): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("parent_child_links")
+    .select("id")
+    .eq("parent_profile_id", parentProfileId)
+    .eq("child_profile_id", childProfileId)
+    .eq("mosque_id", mosqueId)
+    .single();
+
+  return !!data;
+}
+
+/**
+ * Get pending teacher join requests for a mosque.
+ */
+export async function getPendingTeacherRequests(mosqueId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("teacher_join_requests")
+    .select(`
+      id,
+      mosque_id,
+      profile_id,
+      status,
+      created_at,
+      profiles!teacher_join_requests_profile_id_fkey (
+        id,
+        full_name,
+        email
+      )
+    `)
+    .eq("mosque_id", mosqueId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return [];
+  }
+
+  return (data ?? []).map((request) => {
+    const profile = Array.isArray(request.profiles)
+      ? request.profiles[0]
+      : request.profiles;
+
+    return {
+      id: request.id,
+      mosque_id: request.mosque_id,
+      profile_id: request.profile_id,
+      status: request.status,
+      created_at: request.created_at,
+      profile: profile ?? null,
+    };
+  });
+}
+
+/**
+ * Get the teacher join request for a specific user and mosque.
+ */
+export async function getTeacherRequestForUser(
+  profileId: string,
+  mosqueId: string
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("teacher_join_requests")
+    .select("id, status")
+    .eq("profile_id", profileId)
+    .eq("mosque_id", mosqueId)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Get all mosque memberships for a given user (across all mosques).
+ */
+export async function getMembershipsForUser(profileId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("mosque_memberships")
+    .select("mosque_id")
+    .eq("profile_id", profileId);
+
+  if (error) {
+    return [];
   }
 
   return data ?? [];

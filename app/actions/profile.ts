@@ -19,18 +19,6 @@ export async function updateProfile(formData: FormData) {
     return { error: "Name must be at least 2 characters." };
   }
 
-  if (!phoneNumber) {
-    return { error: "Phone number is required." };
-  }
-
-  if (!age || age < 1) {
-    return { error: "Valid age is required." };
-  }
-
-  if (!gender) {
-    return { error: "Gender is required." };
-  }
-
   const supabase = await createClient();
 
   const {
@@ -83,26 +71,18 @@ export async function updateProfile(formData: FormData) {
     }
   }
 
-  const updates: {
-    full_name: string;
-    phone_number: string;
-    age: number;
-    gender: string;
-    avatar_url?: string;
-  } = {
-    full_name: fullName,
-    phone_number: phoneNumber,
-    age,
-    gender,
-  };
+  const updateData: Record<string, unknown> = { full_name: fullName };
+  if (phoneNumber) updateData.phone_number = phoneNumber;
+  if (age && age > 0) updateData.age = age;
+  if (gender) updateData.gender = gender;
 
   if (nextAvatarPath) {
-    updates.avatar_url = nextAvatarPath;
+    updateData.avatar_url = nextAvatarPath;
   }
 
   const { error: updateError } = await supabase
     .from("profiles")
-    .update(updates)
+    .update(updateData)
     .eq("id", user.id);
 
   if (updateError) {

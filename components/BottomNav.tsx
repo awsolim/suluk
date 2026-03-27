@@ -26,6 +26,34 @@ export default async function BottomNav({ slug }: Props) {
 
   const isMosqueAdmin = membership?.role === "mosque_admin"; // Admin nav takes highest priority.
   const isTeacher = membership?.role === "teacher"; // Teacher nav is used when the user is not an admin.
+  const isParent = membership?.role === "parent"; // Parent nav shows programs but not classes.
+
+  const homeLink = {
+    href: `/m/${slug}/dashboard`,
+    icon: "home" as const,
+    label: "Home",
+  };
+
+  const settingsLink = {
+    href: `/m/${slug}/settings`,
+    icon: "settings" as const,
+    label: "Settings",
+  };
+
+  // Parents get a 3-item nav: Home, Programs, Settings.
+  if (isParent) {
+    const items = [
+      homeLink,
+      {
+        href: `/m/${slug}/programs`, // Parents browse the public program catalog to find classes for their children.
+        icon: "programs" as const,
+        label: "Programs",
+      },
+      settingsLink,
+    ];
+
+    return <BottomNavClient items={items} />;
+  }
 
   const secondLink = isMosqueAdmin
     ? {
@@ -64,18 +92,10 @@ export default async function BottomNav({ slug }: Props) {
       };
 
   const items = [
-    {
-      href: `/m/${slug}/dashboard`,
-      icon: "home" as const,
-      label: "Home",
-    },
+    homeLink,
     secondLink,
     thirdLink,
-    {
-      href: `/m/${slug}/settings`,
-      icon: "settings" as const,
-      label: "Settings",
-    },
+    settingsLink,
   ];
 
   return <BottomNavClient items={items} />;

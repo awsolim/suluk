@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isAdminOrTeacher } from "@/lib/permissions";
 
 export async function createProgramAnnouncement(formData: FormData) {
   const slug = String(formData.get("slug") ?? "").trim(); // Read the mosque slug so redirects stay tenant-scoped.
@@ -51,8 +53,8 @@ export async function createProgramAnnouncement(formData: FormData) {
     .eq("mosque_id", mosque.id)
     .maybeSingle(); // Confirm the current user is a teacher in this mosque.
 
-  if (membershipError || !membership || membership.role !== "teacher") {
-    throw new Error("Only teachers can post announcements.");
+  if (membershipError || !membership || !isAdminOrTeacher(membership.role)) {
+    throw new Error("Only admins and teachers can post announcements.");
   }
 
   const { data: program, error: programError } = await supabase
@@ -82,4 +84,107 @@ export async function createProgramAnnouncement(formData: FormData) {
   redirect(
     `/m/${slug}/teacher/programs/${programId}?posted=1`
   ); // Return to the teacher class page with a simple success indicator.
+}
+
+export async function updateAnnouncement(
+  announcementId: string,
+  message: string
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return { error: "Could not load current profile." };
+  }
+
+  if (!message.trim()) {
+    return { error: "Message cannot be empty." };
+  }
+
+  // Verify caller is the author of this announcement
+  const { data: announcement, error: announcementError } = await supabase
+    .from("program_announcements")
+    .select("id, author_profile_id, program_id")
+    .eq("id", announcementId)
+    .maybeSingle();
+
+  if (announcementError || !announcement) {
+    return { error: "Announcement not found." };
+  }
+
+  if (announcement.author_profile_id !== profile.id) {
+    return { error: "You can only edit your own announcements." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("program_announcements")
+    .update({ message: message.trim() })
+    .eq("id", announcementId);
+
+  if (updateError) {
+    return { error: `Failed to update announcement: ${updateError.message}` };
+  }
+
+  return { success: true };
+}
+
+export async function deleteAnnouncement(announcementId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return { error: "Could not load current profile." };
+  }
+
+  // Verify caller is the author of this announcement
+  const { data: announcement, error: announcementError } = await supabase
+    .from("program_announcements")
+    .select("id, author_profile_id, program_id")
+    .eq("id", announcementId)
+    .maybeSingle();
+
+  if (announcementError || !announcement) {
+    return { error: "Announcement not found." };
+  }
+
+  if (announcement.author_profile_id !== profile.id) {
+    return { error: "You can only delete your own announcements." };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("program_announcements")
+    .delete()
+    .eq("id", announcementId);
+
+  if (deleteError) {
+    return { error: `Failed to delete announcement: ${deleteError.message}` };
+  }
+
+  return { success: true };
 }

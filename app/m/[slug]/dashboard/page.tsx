@@ -15,6 +15,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import StudentEnrollmentCard from "@/components/dashboard/StudentEnrollmentCard";
 import TeacherProgramCard from "@/components/dashboard/TeacherProgramCard";
+import { ParentDashboard } from "@/components/dashboard/ParentDashboard";
 import {
   acceptProgramApplication,
   rejectProgramApplication,
@@ -53,6 +54,17 @@ export default async function DashboardPage({ params }: PageProps) {
   }
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+
+  if (membership?.role === "parent") {
+    return (
+      <ParentDashboard
+        profileId={profile.id}
+        mosqueId={mosque.id}
+        slug={slug}
+        primaryColor={primaryColor}
+      />
+    );
+  }
 
   const isMosqueAdmin = membership?.role === "mosque_admin";
   const isLeadTeacher = membership?.role === "lead_teacher";
@@ -137,7 +149,7 @@ export default async function DashboardPage({ params }: PageProps) {
   );
 
   return (
-    <main className="mx-auto max-w-md px-4 py-6">
+    <main className="mx-auto max-w-4xl py-6">
       <div className="space-y-1">
         <p className="text-sm text-gray-500">{mosque.name}</p>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
@@ -196,6 +208,15 @@ export default async function DashboardPage({ params }: PageProps) {
               Manage Programs
             </Link>
           </div>
+
+          {isMosqueAdmin ? (
+            <Link
+              href={`/m/${slug}/admin/teacher-requests`}
+              className="mt-3 block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+            >
+              Teacher Requests
+            </Link>
+          ) : null}
         </section>
       ) : null}
 
@@ -203,13 +224,13 @@ export default async function DashboardPage({ params }: PageProps) {
         <>
           <section className="mt-6">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Inbox</h2>
+              <h2 className="text-lg font-semibold">Pending Applications</h2>
             </div>
 
             {teacherApplications.length === 0 ? (
               <div className="rounded-xl border border-gray-200 p-4">
                 <p className="text-sm text-gray-600">
-                  No student requests right now.
+                  No pending applications
                 </p>
               </div>
             ) : (
@@ -328,51 +349,6 @@ export default async function DashboardPage({ params }: PageProps) {
             )}
           </section>
 
-          <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold">Teacher</h2>
-              <p className="text-sm text-gray-600">
-                View the classes assigned to you and the students in them.
-              </p>
-            </div>
-
-            {teacherStats ? (
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Classes</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {teacherStats.class_count}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 p-3">
-                  <p className="text-sm text-gray-500">Students</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {teacherStats.student_count}
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-4 space-y-3">
-              <Link
-                href={`/m/${slug}/classes`}
-                className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
-                style={{ backgroundColor: primaryColor }}
-              >
-                My Classes
-              </Link>
-
-              <Link
-                href={`/m/${slug}/students`}
-                className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
-                style={{ backgroundColor: secondaryColor }}
-              >
-                View Students
-              </Link>
-            </div>
-          </section>
-
           <section className="mt-8">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">My Classes</h2>
@@ -404,6 +380,51 @@ export default async function DashboardPage({ params }: PageProps) {
                 ))}
               </div>
             )}
+          </section>
+
+          <section className="mt-6 rounded-2xl border border-gray-200 p-4 shadow-sm">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold">Teacher</h2>
+              <p className="text-sm text-gray-600">
+                View the classes assigned to you and the students in them.
+              </p>
+            </div>
+
+            {teacherStats ? (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-200 p-3">
+                  <p className="text-sm text-gray-500">Classes</p>
+                  <p className="mt-1 text-xl font-semibold">
+                    {teacherStats.class_count}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-3">
+                  <p className="text-sm text-gray-500">Students</p>
+                  <p className="mt-1 text-xl font-semibold">
+                    {teacherStats.student_count}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href={`/m/${slug}/classes`}
+                className="block flex-1 rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+                style={{ backgroundColor: primaryColor }}
+              >
+                My Classes
+              </Link>
+
+              <Link
+                href={`/m/${slug}/students`}
+                className="block flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+                style={{ backgroundColor: secondaryColor }}
+              >
+                View Students
+              </Link>
+            </div>
           </section>
         </>
       ) : null}
@@ -548,10 +569,10 @@ export default async function DashboardPage({ params }: PageProps) {
             )}
           </section>
 
-          <section className="mt-8 space-y-3">
+          <section className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href={`/m/${slug}/classes`}
-              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+              className="block flex-1 rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
               style={{ backgroundColor: primaryColor }}
             >
               Go to My Classes
@@ -559,7 +580,7 @@ export default async function DashboardPage({ params }: PageProps) {
 
             <Link
               href={`/m/${slug}/programs`}
-              className="block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+              className="block flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
               style={{ backgroundColor: secondaryColor }}
             >
               Explore More Programs

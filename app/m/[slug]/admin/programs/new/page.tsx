@@ -117,6 +117,19 @@ if (!canManagePrograms) {
           </p>
         </div>
 
+        <div className="space-y-2">
+          <label htmlFor="tags" className="block text-sm font-medium">
+            Tags (comma-separated)
+          </label>
+          <input
+            id="tags"
+            name="tags"
+            type="text"
+            placeholder="Quran & Tajweed, Sisters Only, Youth"
+            className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none"
+          />
+        </div>
+
         <ProgramScheduleEditor />
 
         <label className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-3">

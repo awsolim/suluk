@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { getAllMosques } from "@/lib/supabase/queries";
+import { getAllMosques, getMembershipsForUser } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
+import { getProfileForCurrentUser } from "@/lib/supabase/queries";
+import { JoinAsTeacherButton } from "@/components/masjid/JoinAsTeacherButton";
 
 const DEFAULT_MOSQUE_LOGO =
   "data:image/svg+xml;utf8," +
@@ -14,8 +16,15 @@ const DEFAULT_MOSQUE_LOGO =
   `);
 
 export default async function HomePage() {
-  const supabase = await createClient(); // Used to convert mosque logo storage paths into public URLs.
-  const mosques = await getAllMosques(); // Load all registered mosques for the root directory.
+  const supabase = await createClient();
+  const mosques = await getAllMosques();
+  const profile = await getProfileForCurrentUser();
+  const isLoggedIn = !!profile;
+
+  const userMemberships = isLoggedIn && profile
+    ? await getMembershipsForUser(profile.id)
+    : [];
+  const memberMosqueIds = new Set(userMemberships.map((m) => m.mosque_id));
 
   return (
     <main className="mx-auto max-w-md px-4 py-6">
@@ -24,6 +33,24 @@ export default async function HomePage() {
         <p className="text-sm text-gray-600">
           Open a mosque portal to continue.
         </p>
+      </div>
+
+      <div className="mt-4 flex gap-3">
+        {isLoggedIn ? (
+          <Link
+            href="/create-masjid"
+            className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white"
+          >
+            Create a Masjid
+          </Link>
+        ) : (
+          <Link
+            href="/signup"
+            className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white"
+          >
+            Sign Up
+          </Link>
+        )}
       </div>
 
       {mosques.length === 0 ? (
@@ -62,6 +89,12 @@ export default async function HomePage() {
                     </h2>
                     <p className="text-sm text-gray-500">/{mosque.slug}</p>
                   </div>
+
+                  {isLoggedIn && !memberMosqueIds.has(mosque.id) ? (
+                    <div className="ml-auto shrink-0" onClick={(e) => e.preventDefault()}>
+                      <JoinAsTeacherButton mosqueId={mosque.id} />
+                    </div>
+                  ) : null}
                 </div>
               </Link>
             );

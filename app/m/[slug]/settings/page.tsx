@@ -1,128 +1,94 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { logout } from "@/app/actions/auth";
 import {
-  getMosqueBySlug,
   getProfileForCurrentUser,
+  getMosqueBySlug,
   getMosqueMembershipForUser,
 } from "@/lib/supabase/queries";
-import { createClient } from "@/lib/supabase/server";
-import SubmitButton from "@/components/ui/SubmitButton";
+import { getRoleLabel } from "@/lib/nav";
+import { logout } from "@/app/actions/auth";
+import { ProfileCard } from "@/components/settings/ProfileCard";
+import { PersonalInfoForm } from "@/components/settings/PersonalInfoForm";
+import { Button } from "@/components/ui/button";
 
-type SettingsPageProps = {
-  params: Promise<{
-    slug: string;
-  }>;
-};
-
-const DEFAULT_AVATAR =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-      <rect width="200" height="200" rx="100" fill="#e5e7eb" />
-      <circle cx="100" cy="78" r="34" fill="#9ca3af" />
-      <path d="M45 165c10-30 36-46 55-46s45 16 55 46" fill="#9ca3af" />
-    </svg>
-  `);
-
-export default async function SettingsPage({ params }: SettingsPageProps) {
+export default async function SettingsPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
-
   const mosque = await getMosqueBySlug(slug);
-
-  if (!mosque) {
-    notFound();
-  }
+  if (!mosque) redirect("/");
 
   const profile = await getProfileForCurrentUser();
-
-  if (!profile) {
-    redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/settings`)}`);
-  }
+  if (!profile) redirect(`/m/${slug}/login`);
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const role = membership?.role || "student";
+  const roleLabel = getRoleLabel(role);
   const primaryColor = mosque.primary_color || "#111827";
 
-  const isMosqueAdmin = membership?.role === "mosque_admin";
-  const isTeacher = membership?.role === "teacher";
-
-  const accountRoleLabel = isMosqueAdmin
-    ? "Mosque Admin Account"
-    : isTeacher
-    ? "Teacher Account"
-    : "Student Account";
-
-  const displayName = profile.full_name?.trim() || "User";
-
-  const supabase = await createClient();
-
-  const avatarSrc = profile.avatar_url
-    ? supabase.storage.from("media").getPublicUrl(profile.avatar_url).data.publicUrl
-    : DEFAULT_AVATAR;
-
   return (
-    <section className="space-y-5">
+    <div className="space-y-6 p-4 md:p-6">
       <div>
-        <p className="text-sm text-gray-500">{mosque.name}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Manage your account and app preferences here.
+        <h1 className="text-2xl font-bold">Settings</h1>
+        <p className="text-muted-foreground">
+          Manage your profile and account preferences.
         </p>
       </div>
 
-      <Link
-        href={`/m/${slug}/settings/profile`}
-        className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
-      >
-        <article className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="h-16 w-16 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-              <img
-                src={avatarSrc}
-                alt={displayName}
-                className="h-full w-full object-cover"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <h2 className="truncate text-xl font-semibold">{displayName}</h2>
-              <p className="mt-1 text-sm text-gray-600">{accountRoleLabel}</p>
-              <p className="mt-2 text-sm font-medium text-gray-500">
-                Edit Profile
-              </p>
-            </div>
+      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+        {/* Left column */}
+        <div className="space-y-6">
+          {/* Personal Information */}
+          <div className="rounded-xl border border-border bg-card p-6">
+            <h2 className="mb-4 text-lg font-semibold">Personal Information</h2>
+            <PersonalInfoForm
+              profile={profile}
+              slug={slug}
+              primaryColor={primaryColor}
+            />
           </div>
 
-          <span className="text-lg leading-none text-gray-400">›</span>
-        </article>
-      </Link>
-
-      {isMosqueAdmin ? (
-        <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <h2 className="text-base font-semibold">Admin Tools</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Manage this mosque’s programs.
-          </p>
-
-          <div className="mt-4">
-            <Link
-              href={`/m/${slug}/admin/programs`}
-              className="block rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
-              style={{ backgroundColor: primaryColor }}
-            >
-              Manage Programs
-            </Link>
-          </div>
+          {/* Admin Tools */}
+          {role === "mosque_admin" && (
+            <div className="rounded-xl border border-border bg-card p-6">
+              <h2 className="mb-4 text-lg font-semibold">Admin Tools</h2>
+              <div className="space-y-3">
+                <Link
+                  href={`/m/${slug}/admin/programs`}
+                  className="block rounded-lg border border-border p-3 text-sm hover:bg-muted"
+                >
+                  Manage Programs
+                </Link>
+                <Link
+                  href={`/m/${slug}/admin/members`}
+                  className="block rounded-lg border border-border p-3 text-sm hover:bg-muted"
+                >
+                  Manage Members
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
-      ) : null}
 
-      <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <form action={logout}>
-          <input type="hidden" name="slug" value={slug} />
-
-          <SubmitButton pendingText="Logging out...">Log Out</SubmitButton>
-        </form>
+        {/* Right column */}
+        <div className="space-y-6">
+          <ProfileCard
+            profile={profile}
+            roleLabel={roleLabel}
+            primaryColor={primaryColor}
+          />
+        </div>
       </div>
-    </section>
+
+      {/* Logout */}
+      <form action={logout}>
+        <input type="hidden" name="slug" value={slug} />
+        <Button variant="outline" type="submit" className="text-destructive">
+          Log Out
+        </Button>
+      </form>
+    </div>
   );
 }

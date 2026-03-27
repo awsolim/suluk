@@ -17,6 +17,11 @@ import {
   joinApprovedFreeProgram,
 } from "@/app/actions/applications";
 import SubmitButton from "@/components/ui/SubmitButton";
+import CheckoutButton from "@/components/CheckoutButton";
+import { ChildSelector } from "@/components/programs/ChildSelector";
+import { getChildrenForParent } from "@/lib/supabase/queries";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 type PageProps = {
   params: Promise<{
@@ -101,23 +106,35 @@ export default async function ProgramDetailsPage({
 
   const isTeacher = membership?.role === "teacher";
   const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isParent = membership?.role === "parent";
 
+  // Parents don't enroll themselves — they use ChildSelector
   const enrollment =
-    profile && !isTeacher && !isMosqueAdmin
+    profile && !isTeacher && !isMosqueAdmin && !isParent
       ? await getEnrollmentForStudent(program.id, profile.id)
       : null;
 
   const application =
-    profile && !isTeacher && !isMosqueAdmin
+    profile && !isTeacher && !isMosqueAdmin && !isParent
       ? await getProgramApplicationForStudent(profile.id, program.id)
       : null;
 
   const subscription =
-    profile && program.is_paid && !isTeacher && !isMosqueAdmin
+    profile && program.is_paid && !isTeacher && !isMosqueAdmin && !isParent
       ? await getProgramSubscriptionForStudent(profile.id, program.id)
       : null;
 
   const hasActiveSubscription = isSubscriptionActive(subscription);
+
+  // Load children for parent role
+  const parentChildren =
+    profile && isParent
+      ? await getChildrenForParent(profile.id, mosque.id)
+      : [];
+  const childrenList = parentChildren.map((link: any) => ({
+    id: link.profiles?.id ?? link.child_profile_id,
+    full_name: link.profiles?.full_name ?? "Unknown",
+  })).filter((c: any) => c.id);
 
   const isFromAdmin = from === "admin";
 
@@ -135,8 +152,8 @@ export default async function ProgramDetailsPage({
     ? supabase.storage.from("media").getPublicUrl(program.teacher_avatar_url).data.publicUrl
     : DEFAULT_AVATAR;
 
-  const teacherName = program.teacher_name || "Teacher not assigned";
-  const teacherPhone = program.teacher_phone_number || "Phone number not available";
+  const teacherName = program.teacher_name ?? "No teacher assigned";
+  const teacherPhone = program.teacher_phone_number ?? "Phone number not available";
 
   const isPaidProgram = Boolean(program.is_paid);
 
@@ -155,7 +172,7 @@ export default async function ProgramDetailsPage({
       : "";
 
   return (
-    <main className="mx-auto max-w-md space-y-4 px-4 py-6">
+    <main className="mx-auto max-w-2xl space-y-4 py-6">
       <Link
         href={backHref}
         className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-white"
@@ -212,7 +229,9 @@ export default async function ProgramDetailsPage({
         </h2>
 
         <p className="mt-3 text-lg font-semibold text-gray-900">
-          {formatMonthlyPrice(program.price_monthly_cents ?? null)}
+          {!isPaidProgram || !program.price_monthly_cents
+            ? "Free"
+            : formatMonthlyPrice(program.price_monthly_cents ?? null)}
         </p>
 
         {isPaidProgram ? (
@@ -244,52 +263,109 @@ export default async function ProgramDetailsPage({
             <div className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium text-gray-600">
               Mosque admins cannot apply to programs.
             </div>
-          ) : enrollment ? (
-            <form action={withdrawFromProgram}>
-              <input type="hidden" name="slug" value={slug} />
-              <input type="hidden" name="programId" value={program.id} />
-              <SubmitButton pendingText="Withdrawing...">Withdraw</SubmitButton>
-            </form>
-          ) : application?.status === "pending" ? (
-            <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-800">
-              Application submitted. Waiting for teacher approval.
-            </div>
-          ) : application?.status === "rejected" ? (
-            <div className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-700">
-              Your application was not approved.
-            </div>
-          ) : application?.status === "accepted" && !isPaidProgram ? (
-            <form action={joinApprovedFreeProgram}>
-              <input type="hidden" name="slug" value={slug} />
-              <input type="hidden" name="programId" value={program.id} />
-              <SubmitButton pendingText="Joining...">Join Class</SubmitButton>
-            </form>
-          ) : application?.status === "accepted" && isPaidProgram ? (
-            hasActiveSubscription ? (
-              <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
-                Payment active. You can complete joining from your inbox once Stripe is connected.
-              </div>
+          ) : isParent ? (
+            childrenList.length > 0 ? (
+              <ChildSelector
+                linkedChildren={childrenList}
+                programId={program.id}
+                slug={slug}
+                requiresApplication={true}
+                isPaid={isPaidProgram}
+                primaryColor={primaryColor}
+              />
             ) : (
-              <div className="space-y-3">
-                <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-800">
-                  Teacher approved. Complete payment and join class.
-                </div>
-
-                <button
-                  type="button"
-                  disabled
-                  className="w-full cursor-not-allowed rounded-xl px-4 py-3 text-sm font-medium text-white opacity-60"
+              <div className="space-y-2 text-center">
+                <p className="text-sm text-gray-600">Add a child to your account first.</p>
+                <Link
+                  href={`/m/${slug}/dashboard`}
+                  className="inline-block rounded-xl px-4 py-2 text-sm font-medium text-white"
                   style={{ backgroundColor: primaryColor }}
                 >
-                  Complete Payment and Join Class
-                </button>
+                  Go to Dashboard
+                </Link>
               </div>
             )
+          ) : application?.status === "joined" || enrollment ? (
+            <div className="space-y-3 text-center">
+              <Badge variant="default">Enrolled</Badge>
+              <p className="text-sm text-gray-600">You are enrolled in this program.</p>
+              <Link
+                href={`/m/${slug}/classes/${program.id}`}
+                className="block w-full rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+                style={{ backgroundColor: primaryColor }}
+              >
+                Go to Class
+              </Link>
+              <form action={withdrawFromProgram}>
+                <input type="hidden" name="slug" value={slug} />
+                <input type="hidden" name="programId" value={program.id} />
+                <SubmitButton pendingText="Withdrawing...">Withdraw</SubmitButton>
+              </form>
+            </div>
+          ) : application?.status === "pending" ? (
+            <div className="space-y-3 text-center">
+              <Badge variant="secondary">Application Pending</Badge>
+              <p className="text-sm text-gray-600">
+                Your application has been submitted and is waiting for teacher review.
+              </p>
+            </div>
+          ) : application?.status === "accepted" && !isPaidProgram ? (
+            <div className="space-y-3 text-center">
+              <Badge variant="default">Accepted!</Badge>
+              <p className="text-sm text-gray-600">
+                Congratulations! You have been accepted. Confirm your enrollment below.
+              </p>
+              <form action={joinApprovedFreeProgram}>
+                <input type="hidden" name="slug" value={slug} />
+                <input type="hidden" name="programId" value={program.id} />
+                <SubmitButton pendingText="Joining...">Confirm Enrollment</SubmitButton>
+              </form>
+            </div>
+          ) : application?.status === "accepted" && isPaidProgram ? (
+            hasActiveSubscription ? (
+              <div className="space-y-3 text-center">
+                <Badge variant="default">Enrolled</Badge>
+                <p className="text-sm text-gray-600">
+                  Payment active. You are enrolled in this program.
+                </p>
+                <Link
+                  href={`/m/${slug}/classes/${program.id}`}
+                  className="block w-full rounded-xl px-4 py-3 text-center text-sm font-medium text-white"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  Go to Class
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3 text-center">
+                <Badge variant="default">Accepted!</Badge>
+                <p className="text-sm text-gray-600">
+                  You have been accepted. Complete payment to join the class.
+                </p>
+                <CheckoutButton
+                  programId={program.id}
+                  slug={slug}
+                  primaryColor={primaryColor}
+                />
+              </div>
+            )
+          ) : application?.status === "rejected" ? (
+            <div className="space-y-3 text-center">
+              <Badge variant="destructive">Not Accepted</Badge>
+              <p className="text-sm text-gray-600">
+                Unfortunately, your application was not approved this time.
+              </p>
+              <form action={applyToProgram}>
+                <input type="hidden" name="slug" value={slug} />
+                <input type="hidden" name="programId" value={program.id} />
+                <SubmitButton pendingText="Applying...">Apply Again</SubmitButton>
+              </form>
+            </div>
           ) : (
             <form action={applyToProgram}>
               <input type="hidden" name="slug" value={slug} />
               <input type="hidden" name="programId" value={program.id} />
-              <SubmitButton pendingText="Applying...">Apply to Join</SubmitButton>
+              <SubmitButton pendingText="Applying...">Apply Now</SubmitButton>
             </form>
           )}
         </div>

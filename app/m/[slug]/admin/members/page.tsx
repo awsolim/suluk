@@ -1,0 +1,61 @@
+import { notFound, redirect } from "next/navigation";
+import {
+  getMosqueBySlug,
+  getProfileForCurrentUser,
+  getMosqueMembershipForUser,
+  getMosqueMembers,
+} from "@/lib/supabase/queries";
+import { isAdminOrTeacher } from "@/lib/permissions";
+import MembersTable from "./MembersTable";
+
+type AdminMembersPageProps = {
+  params: Promise<{
+    slug: string;
+  }>;
+};
+
+export default async function AdminMembersPage({
+  params,
+}: AdminMembersPageProps) {
+  const { slug } = await params;
+
+  const mosque = await getMosqueBySlug(slug);
+
+  if (!mosque) {
+    notFound();
+  }
+
+  const profile = await getProfileForCurrentUser();
+
+  if (!profile) {
+    redirect(
+      `/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/admin/members`)}`
+    );
+  }
+
+  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+
+  if (!isAdminOrTeacher(membership?.role)) {
+    notFound();
+  }
+
+  const members = await getMosqueMembers(mosque.id);
+
+  return (
+    <section className="space-y-5">
+      <div>
+        <p className="text-sm text-gray-500">{mosque.name}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          View and manage members of this mosque.
+        </p>
+      </div>
+
+      <MembersTable
+        members={members}
+        mosqueId={mosque.id}
+        currentProfileId={profile.id}
+      />
+    </section>
+  );
+}

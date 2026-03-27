@@ -148,7 +148,7 @@ export default function BottomNavClient({ items }: Props) {
               "color-mix(in srgb, var(--primary-color) 12%, white 88%)",
           }}
         >
-          <div className="grid grid-cols-4 gap-1">
+          <div className={`grid gap-1 ${items.length === 3 ? "grid-cols-3" : "grid-cols-4"}`}>
             {items.map((item) => {
               const isActive =
                 pathname === item.href ||

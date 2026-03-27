@@ -55,7 +55,7 @@ export async function applyToProgram(formData: FormData) {
     throw new Error(`Could not verify mosque role: ${membershipError.message}`);
   }
 
-  if (membership?.role === "teacher" || membership?.role === "mosque_admin") {
+  if (membership?.role === "teacher" || membership?.role === "mosque_admin" || membership?.role === "parent") {
     throw new Error("Only student accounts can apply to programs.");
   }
 
@@ -111,6 +111,19 @@ export async function applyToProgram(formData: FormData) {
 
     if (insertError) {
       throw new Error(`Failed to apply: ${insertError.message}`);
+    }
+  } else if (existingApplication.status === "rejected") {
+    const { error: updateError } = await supabase
+      .from("program_applications")
+      .update({
+        status: "pending",
+        reviewed_at: null,
+        reviewed_by_profile_id: null,
+      })
+      .eq("id", existingApplication.id);
+
+    if (updateError) {
+      throw new Error(`Failed to re-apply: ${updateError.message}`);
     }
   }
 

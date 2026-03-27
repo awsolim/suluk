@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   getMosqueBySlug,
@@ -6,6 +5,7 @@ import {
   getMosqueMembershipForUser,
   getEnrollmentsForTeacherProgramsInMosque,
 } from "@/lib/supabase/queries";
+import StudentListClient from "./StudentListClient";
 
 type TeacherStudentsPageProps = {
   params: Promise<{
@@ -79,61 +79,7 @@ export default async function TeacherStudentsPage({
         </div>
       </div>
 
-      {enrollments.length === 0 ? (
-        <div className="rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <p className="text-sm text-gray-600">
-            No students are registered in your classes yet.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {enrollments.map((enrollment) => {
-            const student = Array.isArray(enrollment.profiles)
-              ? enrollment.profiles[0]
-              : enrollment.profiles;
-
-            const program = Array.isArray(enrollment.programs)
-              ? enrollment.programs[0]
-              : enrollment.programs;
-
-            const joinedDate = new Date(enrollment.created_at).toLocaleDateString(
-              "en-CA",
-              {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              }
-            );
-
-            return (
-              <Link
-                key={enrollment.id}
-                href={`/m/${slug}/teacher/programs/${program?.id}`}
-                className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
-              >
-                <article className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold">
-                      {student?.full_name?.trim() ||
-                        `Student ${enrollment.student_profile_id.slice(0, 8)}`}
-                    </h2>
-
-                    <p className="mt-2 text-sm text-gray-600">
-                      Class: {program?.title ?? "Unknown Program"}
-                    </p>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                      Joined: {joinedDate}
-                    </p>
-                  </div>
-
-                  <span className="text-lg leading-none text-gray-400">›</span>
-                </article>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      <StudentListClient enrollments={enrollments as any} slug={slug} />
     </section>
   );
 }

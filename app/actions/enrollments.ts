@@ -3,6 +3,8 @@
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { stripe } from "@/lib/stripe";
+import { isAdminOrTeacher } from "@/lib/permissions";
 
 export async function enrollInProgram(formData: FormData) {
   const slug = String(formData.get("slug") ?? "").trim();
@@ -68,8 +70,9 @@ export async function enrollInProgram(formData: FormData) {
 
   const isTeacher = membership?.role === "teacher";
   const isMosqueAdmin = membership?.role === "mosque_admin";
+  const isParent = membership?.role === "parent";
 
-  if (isTeacher || isMosqueAdmin) {
+  if (isTeacher || isMosqueAdmin || isParent) {
     throw new Error("Only student accounts can enroll in programs.");
   }
 
@@ -156,6 +159,27 @@ export async function withdrawFromProgram(formData: FormData) {
     redirect(nextPath);
   }
 
+  // Cancel any active Stripe subscription for this student/program
+  const { data: activeSub } = await supabase
+    .from("program_subscriptions")
+    .select("id, stripe_subscription_id, status")
+    .eq("profile_id", profile.id)
+    .eq("program_id", programId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (activeSub?.stripe_subscription_id) {
+    await stripe.subscriptions.cancel(activeSub.stripe_subscription_id);
+
+    await supabase
+      .from("program_subscriptions")
+      .update({
+        status: "canceled",
+        ended_at: new Date().toISOString(),
+      })
+      .eq("id", activeSub.id);
+  }
+
   const { error: deleteError } = await supabase
     .from("enrollments")
     .delete()
@@ -172,4 +196,110 @@ export async function withdrawFromProgram(formData: FormData) {
   revalidatePath(`/m/${slug}/programs/${programId}`);
 
   redirect(nextPath);
+}
+
+export async function removeStudentFromProgram(
+  programId: string,
+  studentProfileId: string
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return { error: "Could not load current profile." };
+  }
+
+  // Look up the program to get the mosque_id and teacher
+  const { data: program, error: programError } = await supabase
+    .from("programs")
+    .select("id, mosque_id, teacher_profile_id")
+    .eq("id", programId)
+    .maybeSingle();
+
+  if (programError || !program) {
+    return { error: "Program not found." };
+  }
+
+  // Verify caller is teacher of this program or mosque admin
+  const { data: membership, error: membershipError } = await supabase
+    .from("mosque_memberships")
+    .select("role")
+    .eq("profile_id", profile.id)
+    .eq("mosque_id", program.mosque_id)
+    .maybeSingle();
+
+  if (membershipError) {
+    return { error: `Could not verify membership: ${membershipError.message}` };
+  }
+
+  if (!isAdminOrTeacher(membership?.role)) {
+    return { error: "You do not have permission to remove students from this program." };
+  }
+
+  // Cancel any active Stripe subscription for this student/program
+  const { data: activeSub } = await supabase
+    .from("program_subscriptions")
+    .select("id, stripe_subscription_id, status")
+    .eq("profile_id", studentProfileId)
+    .eq("program_id", programId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (activeSub?.stripe_subscription_id) {
+    await stripe.subscriptions.cancel(activeSub.stripe_subscription_id);
+
+    await supabase
+      .from("program_subscriptions")
+      .update({
+        status: "canceled",
+        ended_at: new Date().toISOString(),
+      })
+      .eq("id", activeSub.id);
+  }
+
+  // Delete the enrollment
+  const { error: deleteError } = await supabase
+    .from("enrollments")
+    .delete()
+    .eq("program_id", programId)
+    .eq("student_profile_id", studentProfileId);
+
+  if (deleteError) {
+    return { error: `Failed to remove student: ${deleteError.message}` };
+  }
+
+  // Update program_application status to 'rejected' to allow re-application
+  await supabase
+    .from("program_applications")
+    .update({ status: "rejected" })
+    .eq("program_id", programId)
+    .eq("student_profile_id", studentProfileId);
+
+  // Get the mosque slug for revalidation
+  const { data: mosque } = await supabase
+    .from("mosques")
+    .select("slug")
+    .eq("id", program.mosque_id)
+    .maybeSingle();
+
+  if (mosque?.slug) {
+    revalidatePath(`/m/${mosque.slug}/programs/${programId}`);
+    revalidatePath(`/m/${mosque.slug}/admin/programs/${programId}`);
+    revalidatePath(`/m/${mosque.slug}/teacher/programs/${programId}`);
+  }
+
+  return { success: true };
 }

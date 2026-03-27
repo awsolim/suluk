@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       email: user.email ?? null,
     });
 
-    // Mosque-scoped login: auto-assign membership
+    // Mosque-scoped login: check membership, redirect new users to role selection
     if (slug) {
       const { data: mosque } = await supabase
         .from("mosques")
@@ -87,21 +87,14 @@ export async function GET(request: NextRequest) {
           .maybeSingle();
 
         if (!existing) {
-          const memberRole = role === "parent" ? "parent" : "student";
-          await supabase.from("mosque_memberships").insert({
-            mosque_id: mosque.id,
-            profile_id: user.id,
-            role: memberRole,
-          });
-
-          // Teacher signup via OAuth: create join request pending admin approval
-          if (role === "teacher") {
-            await supabase.from("teacher_join_requests").insert({
-              mosque_id: mosque.id,
-              profile_id: user.id,
-              status: "pending",
-            });
-          }
+          // New user for this mosque — let them choose their role
+          const res = NextResponse.redirect(
+            new URL(`/m/${slug}/choose-role`, origin),
+          );
+          responseCookies.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options),
+          );
+          return res;
         }
       }
     }

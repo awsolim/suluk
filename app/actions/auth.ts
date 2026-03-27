@@ -89,6 +89,45 @@ export async function login(formData: FormData) {
   redirect(`/m/${slug}/dashboard`);
 }
 
+export async function assignRole(formData: FormData) {
+  const slug = String(formData.get("slug") || "").trim();
+  const mosqueId = String(formData.get("mosqueId") || "").trim();
+  const role = String(formData.get("role") || "student").trim();
+
+  if (!slug || !mosqueId) {
+    redirect("/");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(`/m/${slug}/login`);
+  }
+
+  const memberRole = role === "parent" ? "parent" : "student";
+  await supabase.from("mosque_memberships").upsert(
+    {
+      mosque_id: mosqueId,
+      profile_id: user.id,
+      role: memberRole,
+    },
+    { onConflict: "mosque_id,profile_id" },
+  );
+
+  if (role === "teacher") {
+    await supabase.from("teacher_join_requests").insert({
+      mosque_id: mosqueId,
+      profile_id: user.id,
+      status: "pending",
+    });
+  }
+
+  redirect(`/m/${slug}/dashboard`);
+}
+
 export async function logout(formData: FormData) {
   const slug = String(formData.get("slug") || "").trim(); // Read the tenant slug so logout can return to the correct portal.
   const supabase = await createClient();

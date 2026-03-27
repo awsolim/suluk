@@ -126,15 +126,18 @@ export async function approveTeacherRequest(
     return { error: `Failed to approve request: ${updateError.message}` };
   }
 
-  // Create teacher membership
+  // Create or upgrade to teacher membership
   const { error: membershipError } = await supabase
     .from("mosque_memberships")
-    .insert({
-      mosque_id: mosqueId,
-      profile_id: request.profile_id,
-      role: "teacher",
-      can_manage_programs: true,
-    });
+    .upsert(
+      {
+        mosque_id: mosqueId,
+        profile_id: request.profile_id,
+        role: "teacher",
+        can_manage_programs: true,
+      },
+      { onConflict: "mosque_id,profile_id" }
+    );
 
   if (membershipError) {
     return { error: `Failed to create membership: ${membershipError.message}` };

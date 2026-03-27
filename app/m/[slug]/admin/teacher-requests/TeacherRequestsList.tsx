@@ -30,13 +30,19 @@ export default function TeacherRequestsList({
 
   function handleApprove(requestId: string) {
     startTransition(async () => {
-      await approveTeacherRequest(requestId, mosqueId);
+      const result = await approveTeacherRequest(requestId, mosqueId);
+      if (result.error) {
+        alert(result.error);
+      }
     });
   }
 
   function handleReject(requestId: string) {
     startTransition(async () => {
-      await rejectTeacherRequest(requestId, mosqueId);
+      const result = await rejectTeacherRequest(requestId, mosqueId);
+      if (result.error) {
+        alert(result.error);
+      }
     });
   }
 

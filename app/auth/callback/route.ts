@@ -68,6 +68,19 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+
+    // For global signup (no slug), redirect new users to create a masjid
+    if (!slug) {
+      const { data: memberships } = await supabase
+        .from("mosque_memberships")
+        .select("id")
+        .eq("profile_id", user.id)
+        .limit(1);
+
+      if (!memberships || memberships.length === 0) {
+        return NextResponse.redirect(new URL("/create-masjid", origin));
+      }
+    }
   }
 
   return NextResponse.redirect(new URL(next, origin));

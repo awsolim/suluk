@@ -4,11 +4,13 @@ import {
   getProfileForCurrentUser,
   getMosqueBySlug,
   getMosqueMembershipForUser,
+  getTeacherRequestForUser,
 } from "@/lib/supabase/queries";
 import { getRoleLabel } from "@/lib/nav";
 import { logout } from "@/app/actions/auth";
 import { ProfileCard } from "@/components/settings/ProfileCard";
 import { PersonalInfoForm } from "@/components/settings/PersonalInfoForm";
+import { RequestTeacherRoleSection } from "@/components/masjid/RequestTeacherRoleSection";
 import { Button } from "@/components/ui/button";
 
 export default async function SettingsPage({
@@ -27,6 +29,11 @@ export default async function SettingsPage({
   const role = membership?.role || "student";
   const roleLabel = getRoleLabel(role);
   const primaryColor = mosque.primary_color || "#111827";
+
+  const canRequestTeacher = role === "student" || role === "parent";
+  const teacherRequest = canRequestTeacher
+    ? await getTeacherRequestForUser(profile.id, mosque.id)
+    : null;
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -49,6 +56,14 @@ export default async function SettingsPage({
               primaryColor={primaryColor}
             />
           </div>
+
+          {/* Teacher Access — visible to students and parents */}
+          {canRequestTeacher && (
+            <RequestTeacherRoleSection
+              mosqueId={mosque.id}
+              initialStatus={teacherRequest?.status ?? null}
+            />
+          )}
 
           {/* Admin Tools */}
           {role === "mosque_admin" && (

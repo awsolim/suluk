@@ -14,16 +14,19 @@ export async function requestToJoinAsTeacher(mosqueId: string) {
     return { error: "Not authenticated." };
   }
 
-  // Check if user already has a membership in this mosque
+  // Check if user already has a teacher or admin role in this mosque
   const { data: existingMembership } = await supabase
     .from("mosque_memberships")
-    .select("id")
+    .select("id, role")
     .eq("profile_id", user.id)
     .eq("mosque_id", mosqueId)
     .maybeSingle();
 
-  if (existingMembership) {
-    return { error: "You are already a member of this mosque." };
+  if (existingMembership?.role === "teacher" || existingMembership?.role === "lead_teacher") {
+    return { error: "You already have a teacher role." };
+  }
+  if (existingMembership?.role === "mosque_admin") {
+    return { error: "You are already a mosque admin." };
   }
 
   // Check for existing pending request

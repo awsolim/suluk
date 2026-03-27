@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getAllMosques } from "@/lib/supabase/queries";
+import { getAllMosques, getMembershipsForUser } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 import { getProfileForCurrentUser } from "@/lib/supabase/queries";
+import { JoinAsTeacherButton } from "@/components/masjid/JoinAsTeacherButton";
 
 const DEFAULT_MOSQUE_LOGO =
   "data:image/svg+xml;utf8," +
@@ -19,6 +20,11 @@ export default async function HomePage() {
   const mosques = await getAllMosques();
   const profile = await getProfileForCurrentUser();
   const isLoggedIn = !!profile;
+
+  const userMemberships = isLoggedIn && profile
+    ? await getMembershipsForUser(profile.id)
+    : [];
+  const memberMosqueIds = new Set(userMemberships.map((m) => m.mosque_id));
 
   return (
     <main className="mx-auto max-w-md px-4 py-6">
@@ -83,6 +89,12 @@ export default async function HomePage() {
                     </h2>
                     <p className="text-sm text-gray-500">/{mosque.slug}</p>
                   </div>
+
+                  {isLoggedIn && !memberMosqueIds.has(mosque.id) ? (
+                    <div className="ml-auto shrink-0" onClick={(e) => e.preventDefault()}>
+                      <JoinAsTeacherButton mosqueId={mosque.id} />
+                    </div>
+                  ) : null}
                 </div>
               </Link>
             );

@@ -208,6 +208,15 @@ export default async function DashboardPage({ params }: PageProps) {
               Manage Programs
             </Link>
           </div>
+
+          {isMosqueAdmin ? (
+            <Link
+              href={`/m/${slug}/admin/teacher-requests`}
+              className="mt-3 block rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+            >
+              Teacher Requests
+            </Link>
+          ) : null}
         </section>
       ) : null}
 

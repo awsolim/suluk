@@ -5,6 +5,7 @@ import {
   getMosqueMembershipForUser,
   getMosqueMembers,
 } from "@/lib/supabase/queries";
+import { isAdminOrTeacher } from "@/lib/permissions";
 import MembersTable from "./MembersTable";
 
 type AdminMembersPageProps = {
@@ -34,7 +35,7 @@ export default async function AdminMembersPage({
 
   const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
 
-  if (membership?.role !== "mosque_admin") {
+  if (!isAdminOrTeacher(membership?.role)) {
     notFound();
   }
 

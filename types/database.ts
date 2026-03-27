@@ -335,6 +335,37 @@ export type Database = {
         };
         Relationships: [];
       };
+
+      teacher_join_requests: {
+        Row: {
+          id: string;
+          mosque_id: string;
+          profile_id: string;
+          status: "pending" | "approved" | "rejected";
+          reviewed_by: string | null;
+          created_at: string;
+          reviewed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          mosque_id: string;
+          profile_id: string;
+          status?: "pending" | "approved" | "rejected";
+          reviewed_by?: string | null;
+          created_at?: string;
+          reviewed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          mosque_id?: string;
+          profile_id?: string;
+          status?: "pending" | "approved" | "rejected";
+          reviewed_by?: string | null;
+          created_at?: string;
+          reviewed_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

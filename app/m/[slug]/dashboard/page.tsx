@@ -580,8 +580,7 @@ export default async function DashboardPage({ params }: PageProps) {
 
             <Link
               href={`/m/${slug}/programs`}
-              className="block flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
-              style={{ backgroundColor: secondaryColor }}
+              className="block flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-center text-sm font-medium"
             >
               Explore More Programs
             </Link>

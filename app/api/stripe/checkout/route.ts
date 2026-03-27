@@ -10,12 +10,139 @@ function getAppOrigin() {
 }
 
 /**
+ * Validates a checkout request against the database.
+ * Exported for integration testing — tests can call this directly
+ * without needing to mock Stripe or Next.js request objects.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function validateCheckout(
+  supabase: any,
+  params: {
+    userId: string;
+    programId: string;
+    slug: string;
+    childProfileId: string | null;
+  }
+): Promise<
+  | { error: string; status: number }
+  | {
+      mosque: { id: string; slug: string; stripe_account_id: string };
+      program: {
+        id: string;
+        title: string;
+        is_paid: boolean;
+        price_monthly_cents: number;
+        stripe_price_id: string | null;
+      };
+      studentProfileId: string;
+    }
+> {
+  const { userId, programId, slug, childProfileId } = params;
+
+  if (!programId || !slug) {
+    return { error: "Missing programId or slug.", status: 400 };
+  }
+
+  if (childProfileId && !UUID_RE.test(childProfileId)) {
+    return { error: "Invalid childProfileId.", status: 400 };
+  }
+
+  if (!UUID_RE.test(programId)) {
+    return { error: "Invalid programId.", status: 400 };
+  }
+
+  // Load the mosque and verify it has a connected Stripe account
+  const { data: mosque } = await supabase
+    .from("mosques")
+    .select("id, slug, stripe_account_id")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (!mosque) {
+    return { error: "Mosque not found.", status: 404 };
+  }
+
+  if (!mosque.stripe_account_id) {
+    return {
+      error: "This mosque has not connected their Stripe account yet.",
+      status: 400,
+    };
+  }
+
+  // Load the program
+  const { data: program } = await supabase
+    .from("programs")
+    .select(
+      "id, mosque_id, title, is_paid, price_monthly_cents, stripe_price_id"
+    )
+    .eq("id", programId)
+    .eq("mosque_id", mosque.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!program) {
+    return { error: "Program not found.", status: 404 };
+  }
+
+  if (!program.is_paid || !program.price_monthly_cents) {
+    return { error: "This program is not a paid program.", status: 400 };
+  }
+
+  // Determine the student being enrolled — either the user or their child
+  const studentProfileId = childProfileId || userId;
+
+  // If paying for a child, verify the parent-child link
+  if (childProfileId) {
+    const { data: link } = await supabase
+      .from("parent_child_links")
+      .select("id")
+      .eq("parent_profile_id", userId)
+      .eq("child_profile_id", childProfileId)
+      .eq("mosque_id", mosque.id)
+      .maybeSingle();
+
+    if (!link) {
+      return { error: "This child is not linked to your account.", status: 403 };
+    }
+  }
+
+  // Verify the student has an accepted application
+  const { data: application } = await supabase
+    .from("program_applications")
+    .select("id, status")
+    .eq("student_profile_id", studentProfileId)
+    .eq("program_id", programId)
+    .maybeSingle();
+
+  if (!application || application.status !== "accepted") {
+    return {
+      error: "An accepted application is required before paying.",
+      status: 403,
+    };
+  }
+
+  // Check if already enrolled
+  const { data: existingEnrollment } = await supabase
+    .from("enrollments")
+    .select("id")
+    .eq("program_id", programId)
+    .eq("student_profile_id", studentProfileId)
+    .maybeSingle();
+
+  if (existingEnrollment) {
+    return { error: "Already enrolled in this program.", status: 400 };
+  }
+
+  return { mosque, program, studentProfileId };
+}
+
+/**
  * POST /api/stripe/checkout
  *
  * Creates a Stripe Checkout Session for a paid program on the mosque's
  * connected account. The student must have an accepted application.
  *
- * Body: { programId: string, slug: string }
+ * Body: { programId: string, slug: string, childProfileId?: string }
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -35,117 +162,21 @@ export async function POST(request: NextRequest) {
     ? String(body.childProfileId).trim()
     : null;
 
-  if (!programId || !slug) {
+  const result = await validateCheckout(supabase, {
+    userId: user.id,
+    programId,
+    slug,
+    childProfileId,
+  });
+
+  if ("error" in result) {
     return NextResponse.json(
-      { error: "Missing programId or slug." },
-      { status: 400 }
+      { error: result.error },
+      { status: result.status }
     );
   }
 
-  if (childProfileId && !UUID_RE.test(childProfileId)) {
-    return NextResponse.json(
-      { error: "Invalid childProfileId." },
-      { status: 400 }
-    );
-  }
-
-  if (!UUID_RE.test(programId)) {
-    return NextResponse.json(
-      { error: "Invalid programId." },
-      { status: 400 }
-    );
-  }
-
-  // Load the mosque and verify it has a connected Stripe account
-  const { data: mosque } = await supabase
-    .from("mosques")
-    .select("id, slug, stripe_account_id")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (!mosque) {
-    return NextResponse.json({ error: "Mosque not found." }, { status: 404 });
-  }
-
-  if (!mosque.stripe_account_id) {
-    return NextResponse.json(
-      { error: "This mosque has not connected their Stripe account yet." },
-      { status: 400 }
-    );
-  }
-
-  // Load the program
-  const { data: program } = await supabase
-    .from("programs")
-    .select(
-      "id, mosque_id, title, is_paid, price_monthly_cents, stripe_price_id"
-    )
-    .eq("id", programId)
-    .eq("mosque_id", mosque.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!program) {
-    return NextResponse.json({ error: "Program not found." }, { status: 404 });
-  }
-
-  if (!program.is_paid || !program.price_monthly_cents) {
-    return NextResponse.json(
-      { error: "This program is not a paid program." },
-      { status: 400 }
-    );
-  }
-
-  // Determine the student being enrolled — either the user or their child
-  const studentProfileId = childProfileId || user.id;
-
-  // If paying for a child, verify the parent-child link
-  if (childProfileId) {
-    const { data: link } = await supabase
-      .from("parent_child_links")
-      .select("id")
-      .eq("parent_profile_id", user.id)
-      .eq("child_profile_id", childProfileId)
-      .eq("mosque_id", mosque.id)
-      .maybeSingle();
-
-    if (!link) {
-      return NextResponse.json(
-        { error: "This child is not linked to your account." },
-        { status: 403 }
-      );
-    }
-  }
-
-  // Verify the student has an accepted application
-  const { data: application } = await supabase
-    .from("program_applications")
-    .select("id, status")
-    .eq("student_profile_id", studentProfileId)
-    .eq("program_id", programId)
-    .maybeSingle();
-
-  if (!application || application.status !== "accepted") {
-    return NextResponse.json(
-      { error: "An accepted application is required before paying." },
-      { status: 403 }
-    );
-  }
-
-  // Check if already enrolled
-  const { data: existingEnrollment } = await supabase
-    .from("enrollments")
-    .select("id")
-    .eq("program_id", programId)
-    .eq("student_profile_id", studentProfileId)
-    .maybeSingle();
-
-  if (existingEnrollment) {
-    return NextResponse.json(
-      { error: "Already enrolled in this program." },
-      { status: 400 }
-    );
-  }
+  const { mosque, program, studentProfileId } = result;
 
   // Use server-derived origin and slug
   const origin = getAppOrigin();

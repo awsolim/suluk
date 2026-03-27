@@ -1091,3 +1091,88 @@ export async function verifyParentChildLink(
 
   return !!data;
 }
+
+/**
+ * Get pending teacher join requests for a mosque.
+ */
+export async function getPendingTeacherRequests(mosqueId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("teacher_join_requests")
+    .select(`
+      id,
+      mosque_id,
+      profile_id,
+      status,
+      created_at,
+      profiles!teacher_join_requests_profile_id_fkey (
+        id,
+        full_name,
+        email
+      )
+    `)
+    .eq("mosque_id", mosqueId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return [];
+  }
+
+  return (data ?? []).map((request) => {
+    const profile = Array.isArray(request.profiles)
+      ? request.profiles[0]
+      : request.profiles;
+
+    return {
+      id: request.id,
+      mosque_id: request.mosque_id,
+      profile_id: request.profile_id,
+      status: request.status,
+      created_at: request.created_at,
+      profile: profile ?? null,
+    };
+  });
+}
+
+/**
+ * Get the teacher join request for a specific user and mosque.
+ */
+export async function getTeacherRequestForUser(
+  profileId: string,
+  mosqueId: string
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("teacher_join_requests")
+    .select("id, status")
+    .eq("profile_id", profileId)
+    .eq("mosque_id", mosqueId)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Get all mosque memberships for a given user (across all mosques).
+ */
+export async function getMembershipsForUser(profileId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("mosque_memberships")
+    .select("mosque_id")
+    .eq("profile_id", profileId);
+
+  if (error) {
+    return [];
+  }
+
+  return data ?? [];
+}

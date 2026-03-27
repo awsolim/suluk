@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getMosqueBySlug } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,6 +28,14 @@ export default async function MosqueHomePage({ params }: PageProps) {
   // If no mosque matches the slug, show Next.js 404 page.
   if (!mosque) {
     notFound();
+  }
+
+  // Authenticated users go straight to dashboard
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    redirect(`/m/${slug}/dashboard`);
   }
 
   const mosqueLogoSrc = mosque.logo_url

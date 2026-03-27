@@ -182,7 +182,7 @@ function MemberRow({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  onSelect={() => {
+                  onClick={() => {
                     setSelectedRole(member.role);
                     setRoleDialogOpen(true);
                   }}
@@ -191,14 +191,14 @@ function MemberRow({
                 </DropdownMenuItem>
                 {isTeacherOrLead && (
                   <DropdownMenuItem
-                    onSelect={() => setProgramDialogOpen(true)}
+                    onClick={() => setProgramDialogOpen(true)}
                   >
                     Toggle Program Management
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
                   variant="destructive"
-                  onSelect={() => setRemoveDialogOpen(true)}
+                  onClick={() => setRemoveDialogOpen(true)}
                 >
                   Remove from Mosque
                 </DropdownMenuItem>

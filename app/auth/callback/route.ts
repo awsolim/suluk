@@ -93,6 +93,15 @@ export async function GET(request: NextRequest) {
             profile_id: user.id,
             role: memberRole,
           });
+
+          // Teacher signup via OAuth: create join request pending admin approval
+          if (role === "teacher") {
+            await supabase.from("teacher_join_requests").insert({
+              mosque_id: mosque.id,
+              profile_id: user.id,
+              status: "pending",
+            });
+          }
         }
       }
     }

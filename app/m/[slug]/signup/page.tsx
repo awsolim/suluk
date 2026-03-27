@@ -6,9 +6,7 @@ import SubmitButton from "@/components/ui/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthLayout } from "@/components/auth/AuthLayout";
-import { RoleSelector } from "@/components/auth/RoleSelector";
-import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
-import { AuthDivider } from "@/components/auth/AuthDivider";
+import { SignupFormWithRole } from "@/components/auth/SignupFormWithRole";
 
 type TenantSignupPageProps = {
   params: Promise<{ slug: string }>;
@@ -92,71 +90,69 @@ export default async function TenantSignupPage({
           </p>
         ) : null}
 
-        <GoogleSignInButton
-          redirectTo={`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/auth/callback?next=/m/${slug}/dashboard&slug=${slug}&role=student`}
-        />
-
-        <AuthDivider />
-
         <form action={signup} className="space-y-4">
           <input type="hidden" name="slug" value={slug} />
 
-          <RoleSelector primaryColor={primaryColor} />
-
-          <div className="space-y-1.5">
-            <Label htmlFor="full_name">Full Name</Label>
-            <Input
-              id="full_name"
-              name="full_name"
-              type="text"
-              required
-              placeholder="Your full name"
-              className="h-11"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              required
-              placeholder="you@example.com"
-              className="h-11"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              required
-              placeholder="••••••••"
-              className="h-11"
-            />
-          </div>
-
-          <SubmitButton
-            pendingText="Creating account..."
-            style={{ backgroundColor: primaryColor }}
+          <SignupFormWithRole
+            slug={slug}
+            siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
+            primaryColor={primaryColor}
           >
-            Create Account
-          </SubmitButton>
+            <div className="space-y-1.5">
+              <Label htmlFor="full_name">Full Name</Label>
+              <Input
+                id="full_name"
+                name="full_name"
+                type="text"
+                required
+                placeholder="Your full name"
+                className="h-11"
+              />
+            </div>
 
-          <p className="text-center text-xs text-muted-foreground">
-            By creating an account you agree to our{" "}
-            <span className="underline underline-offset-2 cursor-default">
-              Terms of Service
-            </span>{" "}
-            and{" "}
-            <span className="underline underline-offset-2 cursor-default">
-              Privacy Policy
-            </span>
-            .
-          </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="you@example.com"
+                className="h-11"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                placeholder="••••••••"
+                className="h-11"
+              />
+            </div>
+
+            <SubmitButton
+              pendingText="Creating account..."
+              style={{ backgroundColor: primaryColor }}
+            >
+              Create Account
+            </SubmitButton>
+
+            <p className="text-center text-xs text-muted-foreground">
+              By creating an account you agree to our{" "}
+              <span className="underline underline-offset-2 cursor-default">
+                Terms of Service
+              </span>{" "}
+              and{" "}
+              <span className="underline underline-offset-2 cursor-default">
+                Privacy Policy
+              </span>
+              .
+            </p>
+          </SignupFormWithRole>
         </form>
 
         <p className="text-sm text-muted-foreground">

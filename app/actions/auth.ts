@@ -45,11 +45,21 @@ export async function signup(formData: FormData) {
 
     const mosque = await getMosqueBySlug(slug);
     if (mosque) {
+      const memberRole = role === "parent" ? "parent" : "student";
       await supabase.from("mosque_memberships").upsert({
         mosque_id: mosque.id,
         profile_id: data.user.id,
-        role: role === "parent" ? "parent" : "student",
+        role: memberRole,
       }, { onConflict: "mosque_id,profile_id" });
+
+      // Teacher signup: create a join request pending admin approval
+      if (role === "teacher") {
+        await supabase.from("teacher_join_requests").insert({
+          mosque_id: mosque.id,
+          profile_id: data.user.id,
+          status: "pending",
+        });
+      }
     }
   }
 

@@ -108,11 +108,14 @@ export async function GET(request: NextRequest) {
 
         if (!existing) {
           // Auto-join as student so the user is immediately logged into the mosque
-          await supabase.from("mosque_memberships").insert({
-            mosque_id: mosque.id,
-            profile_id: user.id,
-            role: "student",
-          });
+          await supabase.from("mosque_memberships").upsert(
+            {
+              mosque_id: mosque.id,
+              profile_id: user.id,
+              role: "student",
+            },
+            { onConflict: "mosque_id,profile_id", ignoreDuplicates: true }
+          );
         }
       }
     }

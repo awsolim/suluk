@@ -48,7 +48,7 @@ export async function changeMemberRole(
   // Teachers can only assign student or parent roles
   if (
     callerMembership?.role !== "mosque_admin" &&
-    !TEACHER_ASSIGNABLE_ROLES.includes(newRole as any)
+    !TEACHER_ASSIGNABLE_ROLES.includes(newRole as typeof TEACHER_ASSIGNABLE_ROLES[number])
   ) {
     return { error: "Teachers can only assign student or parent roles." };
   }
@@ -221,7 +221,7 @@ export async function removeMemberFromMosque(
 
     if (
       targetMembershipRole &&
-      PROTECTED_ROLES.includes(targetMembershipRole.role as any)
+      PROTECTED_ROLES.includes(targetMembershipRole.role as typeof PROTECTED_ROLES[number])
     ) {
       return { error: "Teachers cannot remove other teachers or admins." };
     }

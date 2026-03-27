@@ -419,7 +419,7 @@ export default async function DashboardPage({ params }: PageProps) {
 
               <Link
                 href={`/m/${slug}/students`}
-                className="block flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium"
+                className="block flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-medium text-white"
                 style={{ backgroundColor: secondaryColor }}
               >
                 View Students

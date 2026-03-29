@@ -69,6 +69,23 @@ export async function validateCheckout(
     };
   }
 
+  // Verify the connected account can actually accept charges
+  // (stripe_account_id exists ≠ onboarding is complete)
+  try {
+    const account = await stripe.accounts.retrieve(mosque.stripe_account_id);
+    if (!account.charges_enabled) {
+      return {
+        error: "This mosque's Stripe account setup is incomplete. The admin needs to finish onboarding.",
+        status: 400,
+      };
+    }
+  } catch {
+    return {
+      error: "Unable to verify Stripe account status.",
+      status: 500,
+    };
+  }
+
   // Load the program
   const { data: program } = await supabase
     .from("programs")

@@ -1,4 +1,4 @@
-import { getChildrenForParent, getChildEnrollments, getChildApplications } from "@/lib/supabase/queries";
+import { getChildrenForParent, getChildEnrollmentsBatch, getChildApplicationsBatch } from "@/lib/supabase/queries";
 import { ChildCard } from "./ChildCard";
 import { AddChildDialog } from "./AddChildDialog";
 
@@ -12,17 +12,23 @@ interface ParentDashboardProps {
 export async function ParentDashboard({ profileId, mosqueId, slug, primaryColor }: ParentDashboardProps) {
   const children = await getChildrenForParent(profileId, mosqueId);
 
-  const childrenWithData = await Promise.all(
-    children.map(async (link: any) => {
-      const childProfile = link.profiles;
-      if (!childProfile) return null;
-      const enrollments = await getChildEnrollments(childProfile.id, mosqueId);
-      const applications = await getChildApplications(childProfile.id, mosqueId);
-      return { child: childProfile, enrollments, applications };
-    })
-  );
+  const childProfiles = children
+    .map((link: any) => link.profiles)
+    .filter(Boolean);
 
-  const validChildren = childrenWithData.filter(Boolean);
+  const childIds = childProfiles.map((p: any) => p.id);
+
+  // Batch: 2 queries instead of 2N
+  const [allEnrollments, allApplications] = await Promise.all([
+    getChildEnrollmentsBatch(childIds, mosqueId),
+    getChildApplicationsBatch(childIds, mosqueId),
+  ]);
+
+  const validChildren = childProfiles.map((childProfile: any) => ({
+    child: childProfile,
+    enrollments: allEnrollments.filter((e: any) => e.student_profile_id === childProfile.id),
+    applications: allApplications.filter((a: any) => a.student_profile_id === childProfile.id),
+  }));
 
   return (
     <div className="space-y-6 p-4 md:p-6">

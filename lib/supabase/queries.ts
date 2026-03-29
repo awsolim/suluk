@@ -1047,6 +1047,47 @@ export async function getChildApplications(childProfileId: string, mosqueId: str
   return (data || []).filter((a: any) => a.programs?.mosque_id === mosqueId);
 }
 
+export async function getChildEnrollmentsBatch(childProfileIds: string[], mosqueId: string) {
+  if (childProfileIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("enrollments")
+    .select(`
+      id,
+      student_profile_id,
+      created_at,
+      programs (
+        id, title, description, thumbnail_url, schedule, schedule_timezone,
+        mosque_id,
+        teacher_profile_id,
+        profiles!programs_teacher_profile_id_fkey ( full_name, avatar_url )
+      )
+    `)
+    .in("student_profile_id", childProfileIds);
+
+  return (data || []).filter((e: any) => e.programs?.mosque_id === mosqueId);
+}
+
+export async function getChildApplicationsBatch(childProfileIds: string[], mosqueId: string) {
+  if (childProfileIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("program_applications")
+    .select(`
+      id,
+      status,
+      student_profile_id,
+      created_at,
+      programs (
+        id, title, description, thumbnail_url, mosque_id
+      )
+    `)
+    .in("student_profile_id", childProfileIds)
+    .order("created_at", { ascending: false });
+
+  return (data || []).filter((a: any) => a.programs?.mosque_id === mosqueId);
+}
+
 export async function verifyParentChildLink(
   parentProfileId: string,
   childProfileId: string,

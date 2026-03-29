@@ -13,6 +13,7 @@ import { PersonalInfoForm } from "@/components/settings/PersonalInfoForm";
 import { RequestTeacherRoleSection } from "@/components/masjid/RequestTeacherRoleSection";
 import { Button } from "@/components/ui/button";
 import StripeConnectButton from "@/components/StripeConnectButton";
+import { stripe } from "@/lib/stripe";
 
 export default async function SettingsPage({
   params,
@@ -35,6 +36,18 @@ export default async function SettingsPage({
   const teacherRequest = canRequestTeacher
     ? await getTeacherRequestForUser(profile.id, mosque.id)
     : null;
+
+  // Check real Stripe account status (not just whether ID exists)
+  let stripeStatus: "not_started" | "pending" | "connected" = "not_started";
+  if (role === "mosque_admin" && mosque.stripe_account_id) {
+    try {
+      const account = await stripe.accounts.retrieve(mosque.stripe_account_id);
+      stripeStatus = account.charges_enabled ? "connected" : "pending";
+    } catch {
+      // Account retrieval failed — treat as not started
+      stripeStatus = "not_started";
+    }
+  }
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -78,7 +91,7 @@ export default async function SettingsPage({
                 <StripeConnectButton
                   mosqueId={mosque.id}
                   slug={slug}
-                  isConnected={!!mosque.stripe_account_id}
+                  stripeStatus={stripeStatus}
                   primaryColor={primaryColor}
                 />
               </div>

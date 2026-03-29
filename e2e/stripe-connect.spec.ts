@@ -13,9 +13,9 @@ test.describe('Stripe Connect admin settings', () => {
       page.getByText(/connect a stripe account to accept payments/i)
     ).toBeVisible();
 
-    // Connect button is rendered
+    // Connect or continue button is rendered (depends on whether account was started)
     await expect(
-      page.getByRole('button', { name: /connect stripe account/i })
+      page.getByRole('button', { name: /connect stripe account|continue stripe setup/i })
     ).toBeVisible();
   });
 
@@ -29,9 +29,9 @@ test.describe('Stripe Connect admin settings', () => {
     // Payments heading should not exist
     await expect(page.getByRole('heading', { name: /payments/i })).not.toBeAttached();
 
-    // Connect button should not exist
+    // Connect/continue button should not exist
     await expect(
-      page.getByRole('button', { name: /connect stripe account/i })
+      page.getByRole('button', { name: /connect stripe account|continue stripe setup/i })
     ).not.toBeAttached();
   });
 });

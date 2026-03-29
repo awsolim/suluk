@@ -1,11 +1,12 @@
 import type { CSSProperties, ReactNode } from "react";
 import { notFound } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
 import { createClient } from "@/lib/supabase/server";
+import Image from "next/image";
 import AppShell from "@/components/AppShell";
 
 type TenantLayoutProps = {
@@ -32,13 +33,15 @@ export default async function TenantLayout({
 }: TenantLayoutProps) {
   const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug);
+  const [mosque, supabase] = await Promise.all([
+    getCachedMosqueBySlug(slug),
+    createClient(),
+  ]);
 
   if (!mosque) {
     notFound();
   }
 
-  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -52,9 +55,9 @@ export default async function TenantLayout({
 
   // For authenticated users, load profile and membership for AppShell
   if (user) {
-    const profile = await getProfileForCurrentUser();
+    const profile = await getCachedProfile();
     const membership = profile
-      ? await getMosqueMembershipForUser(profile.id, mosque.id)
+      ? await getCachedMembership(profile.id, mosque.id)
       : null;
 
     const role = membership?.role ?? "student";
@@ -99,10 +102,13 @@ export default async function TenantLayout({
           >
             <div className="flex items-center gap-3 px-4 py-4">
               <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-                <img
+                <Image
                   src={mosqueLogoSrc}
                   alt={mosque.name}
+                  width={40}
+                  height={40}
                   className="h-full w-full object-cover"
+                  unoptimized={mosqueLogoSrc.startsWith("data:")}
                 />
               </div>
 
@@ -122,10 +128,13 @@ export default async function TenantLayout({
           >
             <div className="flex items-center gap-3 px-4 py-4 pl-14">
               <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-                <img
+                <Image
                   src={mosqueLogoSrc}
                   alt={mosque.name}
+                  width={40}
+                  height={40}
                   className="h-full w-full object-cover"
+                  unoptimized={mosqueLogoSrc.startsWith("data:")}
                 />
               </div>
 
@@ -164,10 +173,13 @@ export default async function TenantLayout({
         >
           <div className="flex items-center gap-3 px-4 py-4">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-              <img
+              <Image
                 src={mosqueLogoSrc}
                 alt={mosque.name}
+                width={40}
+                height={40}
                 className="h-full w-full object-cover"
+                unoptimized={mosqueLogoSrc.startsWith("data:")}
               />
             </div>
 

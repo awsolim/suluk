@@ -71,6 +71,14 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "account.updated": {
+        const account = event.data.object as Stripe.Account;
+        void account; // referenced to satisfy TypeScript
+        const { revalidateTag } = await import("next/cache");
+        revalidateTag("stripe-status", "max");
+        break;
+      }
+
       default:
         // Unhandled event type — acknowledge receipt
         break;

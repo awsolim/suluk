@@ -13,7 +13,21 @@ import { PersonalInfoForm } from "@/components/settings/PersonalInfoForm";
 import { RequestTeacherRoleSection } from "@/components/masjid/RequestTeacherRoleSection";
 import { Button } from "@/components/ui/button";
 import StripeConnectButton from "@/components/StripeConnectButton";
-import { stripe } from "@/lib/stripe";
+import { unstable_cache } from "next/cache";
+
+const getCachedStripeStatus = unstable_cache(
+  async (stripeAccountId: string) => {
+    const { stripe } = await import("@/lib/stripe");
+    try {
+      const account = await stripe.accounts.retrieve(stripeAccountId);
+      return account.charges_enabled ? "connected" as const : "pending" as const;
+    } catch {
+      return "not_started" as const;
+    }
+  },
+  ["stripe-status"],
+  { tags: ["stripe-status"], revalidate: 3600 }
+);
 
 export default async function SettingsPage({
   params,
@@ -37,16 +51,9 @@ export default async function SettingsPage({
     ? await getTeacherRequestForUser(profile.id, mosque.id)
     : null;
 
-  // Check real Stripe account status (not just whether ID exists)
   let stripeStatus: "not_started" | "pending" | "connected" = "not_started";
   if (role === "mosque_admin" && mosque.stripe_account_id) {
-    try {
-      const account = await stripe.accounts.retrieve(mosque.stripe_account_id);
-      stripeStatus = account.charges_enabled ? "connected" : "pending";
-    } catch {
-      // Account retrieval failed — treat as not started
-      stripeStatus = "not_started";
-    }
+    stripeStatus = await getCachedStripeStatus(mosque.stripe_account_id);
   }
 
   return (

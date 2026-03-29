@@ -12,6 +12,7 @@ import { ProfileCard } from "@/components/settings/ProfileCard";
 import { PersonalInfoForm } from "@/components/settings/PersonalInfoForm";
 import { RequestTeacherRoleSection } from "@/components/masjid/RequestTeacherRoleSection";
 import { Button } from "@/components/ui/button";
+import StripeConnectButton from "@/components/StripeConnectButton";
 
 export default async function SettingsPage({
   params,
@@ -65,25 +66,42 @@ export default async function SettingsPage({
             />
           )}
 
-          {/* Admin Tools */}
+          {/* Admin — Payments & Tools */}
           {role === "mosque_admin" && (
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h2 className="mb-4 text-lg font-semibold">Admin Tools</h2>
-              <div className="space-y-3">
-                <Link
-                  href={`/m/${slug}/admin/programs`}
-                  className="block rounded-lg border border-border p-3 text-sm hover:bg-muted"
-                >
-                  Manage Programs
-                </Link>
-                <Link
-                  href={`/m/${slug}/admin/members`}
-                  className="block rounded-lg border border-border p-3 text-sm hover:bg-muted"
-                >
-                  Manage Members
-                </Link>
+            <>
+              {/* Payments */}
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h2 className="mb-1 text-lg font-semibold">Payments</h2>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Connect a Stripe account to accept payments for paid programs.
+                </p>
+                <StripeConnectButton
+                  mosqueId={mosque.id}
+                  slug={slug}
+                  isConnected={!!mosque.stripe_account_id}
+                  primaryColor={primaryColor}
+                />
               </div>
-            </div>
+
+              {/* Admin Tools */}
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h2 className="mb-4 text-lg font-semibold">Admin Tools</h2>
+                <div className="space-y-3">
+                  <Link
+                    href={`/m/${slug}/admin/programs`}
+                    className="block rounded-lg border border-border p-3 text-sm hover:bg-muted"
+                  >
+                    Manage Programs
+                  </Link>
+                  <Link
+                    href={`/m/${slug}/admin/members`}
+                    className="block rounded-lg border border-border p-3 text-sm hover:bg-muted"
+                  >
+                    Manage Members
+                  </Link>
+                </div>
+              </div>
+            </>
           )}
         </div>
 

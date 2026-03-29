@@ -76,29 +76,15 @@ export default async function DashboardPage({ params }: PageProps) {
     isMosqueAdmin || isLeadTeacher || (isTeacher && membership?.can_manage_programs);
   const isStudentOnly = !isMosqueAdmin && !isTeacherLike;
 
-  const enrollments = isStudentOnly
-    ? await getEnrollmentsForStudentInMosque(profile.id, mosque.id)
-    : [];
-
-  const teachingPrograms = isTeacherLike
-    ? await getProgramsForTeacherInMosque(profile.id, mosque.id)
-    : [];
-
-  const studentApplications = isStudentOnly
-    ? await getStudentProgramApplicationsInMosque(profile.id, mosque.id)
-    : [];
-
-  const teacherApplications = isTeacherLike
-    ? await getTeacherProgramApplicationsInMosque(profile.id, mosque.id)
-    : [];
-
-  const teacherStats = isTeacherLike
-    ? await getTeacherDashboardStats(profile.id, mosque.id)
-    : null;
-
-  const adminStats = canManagePrograms
-    ? await getAdminDashboardStats(mosque.id)
-    : null;
+  const [enrollments, teachingPrograms, studentApplications, teacherApplications, teacherStats, adminStats] =
+    await Promise.all([
+      isStudentOnly ? getEnrollmentsForStudentInMosque(profile.id, mosque.id) : Promise.resolve([]),
+      isTeacherLike ? getProgramsForTeacherInMosque(profile.id, mosque.id) : Promise.resolve([]),
+      isStudentOnly ? getStudentProgramApplicationsInMosque(profile.id, mosque.id) : Promise.resolve([]),
+      isTeacherLike ? getTeacherProgramApplicationsInMosque(profile.id, mosque.id) : Promise.resolve([]),
+      isTeacherLike ? getTeacherDashboardStats(profile.id, mosque.id) : Promise.resolve(null),
+      canManagePrograms ? getAdminDashboardStats(mosque.id) : Promise.resolve(null),
+    ]);
 
   const enrolledProgramIds = enrollments
     .map((enrollment) => {

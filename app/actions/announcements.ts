@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminOrTeacher } from "@/lib/permissions";
 
@@ -81,6 +81,7 @@ export async function createProgramAnnouncement(formData: FormData) {
     throw new Error(`Failed to post announcement: ${insertError.message}`);
   }
 
+  revalidateTag("announcements", "max");
   redirect(
     `/m/${slug}/teacher/programs/${programId}?posted=1`
   ); // Return to the teacher class page with a simple success indicator.
@@ -138,6 +139,7 @@ export async function updateAnnouncement(
     return { error: `Failed to update announcement: ${updateError.message}` };
   }
 
+  revalidateTag("announcements", "max");
   return { success: true };
 }
 
@@ -186,5 +188,6 @@ export async function deleteAnnouncement(announcementId: string) {
     return { error: `Failed to delete announcement: ${deleteError.message}` };
   }
 
+  revalidateTag("announcements", "max");
   return { success: true };
 }

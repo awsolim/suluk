@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { isAdminOrTeacher, TEACHER_ASSIGNABLE_ROLES, PROTECTED_ROLES } from "@/lib/permissions";
 
 export async function changeMemberRole(
@@ -68,16 +68,7 @@ export async function changeMemberRole(
     return { error: `Failed to change role: ${updateError.message}` };
   }
 
-  // Get mosque slug for revalidation
-  const { data: mosque } = await supabase
-    .from("mosques")
-    .select("slug")
-    .eq("id", mosqueId)
-    .maybeSingle();
-
-  if (mosque?.slug) {
-    revalidatePath(`/m/${mosque.slug}/admin/members`);
-  }
+  revalidateTag("members", "max");
 
   return { success: true };
 }
@@ -144,16 +135,7 @@ export async function toggleCanManagePrograms(
     return { error: `Failed to toggle permission: ${updateError.message}` };
   }
 
-  // Get mosque slug for revalidation
-  const { data: mosque } = await supabase
-    .from("mosques")
-    .select("slug")
-    .eq("id", mosqueId)
-    .maybeSingle();
-
-  if (mosque?.slug) {
-    revalidatePath(`/m/${mosque.slug}/admin/members`);
-  }
+  revalidateTag("members", "max");
 
   return { success: true };
 }
@@ -254,16 +236,8 @@ export async function removeMemberFromMosque(
     return { error: `Failed to remove member: ${deleteError.message}` };
   }
 
-  // Get mosque slug for revalidation
-  const { data: mosque } = await supabase
-    .from("mosques")
-    .select("slug")
-    .eq("id", mosqueId)
-    .maybeSingle();
-
-  if (mosque?.slug) {
-    revalidatePath(`/m/${mosque.slug}/admin/members`);
-  }
+  revalidateTag("members", "max");
+  revalidateTag("enrollments", "max");
 
   return { success: true };
 }

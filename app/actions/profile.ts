@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function updateProfile(formData: FormData) {
@@ -89,12 +89,7 @@ export async function updateProfile(formData: FormData) {
     return { error: updateError.message };
   }
 
-  revalidatePath(`/m/${slug}/settings`);
-  revalidatePath(`/m/${slug}/settings/profile`);
-  revalidatePath(`/m/${slug}/programs`);
-  revalidatePath(`/m/${slug}/classes`);
-  revalidatePath(`/m/${slug}/students`);
-  revalidatePath(`/m/${slug}/dashboard`);
+  revalidateTag("profile", "max");
 
   return { success: true };
 }

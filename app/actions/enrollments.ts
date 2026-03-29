@@ -1,7 +1,7 @@
 "use server";
 
 import { notFound, redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { isAdminOrTeacher } from "@/lib/permissions";
@@ -98,11 +98,8 @@ export async function enrollInProgram(formData: FormData) {
     }
   }
 
-  revalidatePath(`/m/${slug}/dashboard`);
-  revalidatePath(`/m/${slug}/classes`);
-  revalidatePath(`/m/${slug}/classes/${programId}`);
-  revalidatePath(`/m/${slug}/programs`);
-  revalidatePath(`/m/${slug}/programs/${programId}`);
+  revalidateTag("enrollments", "max");
+  revalidateTag("mosque-programs", "max");
 
   redirect(nextPath);
 }
@@ -151,11 +148,8 @@ export async function withdrawFromProgram(formData: FormData) {
   }
 
   if (!existingEnrollment) {
-    revalidatePath(`/m/${slug}/dashboard`);
-    revalidatePath(`/m/${slug}/classes`);
-    revalidatePath(`/m/${slug}/classes/${programId}`);
-    revalidatePath(`/m/${slug}/programs`);
-    revalidatePath(`/m/${slug}/programs/${programId}`);
+    revalidateTag("enrollments", "max");
+    revalidateTag("mosque-programs", "max");
     redirect(nextPath);
   }
 
@@ -189,11 +183,8 @@ export async function withdrawFromProgram(formData: FormData) {
     throw new Error(`Failed to withdraw: ${deleteError.message}`);
   }
 
-  revalidatePath(`/m/${slug}/dashboard`);
-  revalidatePath(`/m/${slug}/classes`);
-  revalidatePath(`/m/${slug}/classes/${programId}`);
-  revalidatePath(`/m/${slug}/programs`);
-  revalidatePath(`/m/${slug}/programs/${programId}`);
+  revalidateTag("enrollments", "max");
+  revalidateTag("mosque-programs", "max");
 
   redirect(nextPath);
 }
@@ -288,18 +279,9 @@ export async function removeStudentFromProgram(
     .eq("program_id", programId)
     .eq("student_profile_id", studentProfileId);
 
-  // Get the mosque slug for revalidation
-  const { data: mosque } = await supabase
-    .from("mosques")
-    .select("slug")
-    .eq("id", program.mosque_id)
-    .maybeSingle();
-
-  if (mosque?.slug) {
-    revalidatePath(`/m/${mosque.slug}/programs/${programId}`);
-    revalidatePath(`/m/${mosque.slug}/admin/programs/${programId}`);
-    revalidatePath(`/m/${mosque.slug}/teacher/programs/${programId}`);
-  }
+  revalidateTag("enrollments", "max");
+  revalidateTag("applications", "max");
+  revalidateTag("mosque-programs", "max");
 
   return { success: true };
 }

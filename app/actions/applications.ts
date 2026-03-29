@@ -1,7 +1,7 @@
 "use server";
 
 import { notFound, redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function applyToProgram(formData: FormData) {
@@ -127,10 +127,8 @@ export async function applyToProgram(formData: FormData) {
     }
   }
 
-  revalidatePath(`/m/${slug}/programs`);
-  revalidatePath(`/m/${slug}/programs/${programId}`);
-  revalidatePath(`/m/${slug}/dashboard`);
-  revalidatePath(`/m/${slug}/teacher/programs/${programId}`);
+  revalidateTag("applications", "max");
+  revalidateTag("mosque-programs", "max");
 
   redirect(`/m/${slug}/programs/${programId}`);
 }
@@ -167,7 +165,7 @@ export async function acceptProgramApplication(formData: FormData) {
     throw new Error(`Failed to accept application: ${error.message}`);
   }
 
-  revalidatePath(`/m/${slug}/dashboard`);
+  revalidateTag("applications", "max");
   redirect(`/m/${slug}/dashboard`);
 }
 
@@ -203,7 +201,7 @@ export async function rejectProgramApplication(formData: FormData) {
     throw new Error(`Failed to reject application: ${error.message}`);
   }
 
-  revalidatePath(`/m/${slug}/dashboard`);
+  revalidateTag("applications", "max");
   redirect(`/m/${slug}/dashboard`);
 }
 
@@ -300,11 +298,9 @@ export async function joinApprovedFreeProgram(formData: FormData) {
     throw new Error(`Failed to finalize application: ${updateError.message}`);
   }
 
-  revalidatePath(`/m/${slug}/dashboard`);
-  revalidatePath(`/m/${slug}/classes`);
-  revalidatePath(`/m/${slug}/classes/${programId}`);
-  revalidatePath(`/m/${slug}/programs`);
-  revalidatePath(`/m/${slug}/programs/${programId}`);
+  revalidateTag("applications", "max");
+  revalidateTag("enrollments", "max");
+  revalidateTag("mosque-programs", "max");
 
   redirect(`/m/${slug}/classes/${programId}`);
 }

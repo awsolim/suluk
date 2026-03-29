@@ -1,7 +1,7 @@
 "use server";
 
 import { notFound, redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { isAdminOrTeacher } from "@/lib/permissions";
@@ -176,6 +176,7 @@ export async function createProgram(formData: FormData) {
     throw new Error(`Failed to create program: ${insertError.message}`);
   }
 
+  revalidateTag("mosque-programs", "max");
   redirect(`/m/${slug}/admin/programs`);
 }
 
@@ -298,6 +299,7 @@ export async function updateProgram(formData: FormData) {
     throw new Error(`Failed to update program: ${updateError.message}`);
   }
 
+  revalidateTag("mosque-programs", "max");
   redirect(`/m/${slug}/admin/programs`);
 }
 
@@ -398,6 +400,7 @@ export async function updateTeacherProgram(formData: FormData) {
     throw new Error(`Failed to update teacher program: ${updateError.message}`);
   }
 
+  revalidateTag("mosque-programs", "max");
   redirect(`/m/${slug}/teacher/programs/${programId}`);
 }
 
@@ -507,8 +510,10 @@ export async function deleteProgram(programId: string, mosqueId: string) {
     .eq("id", mosqueId)
     .maybeSingle();
 
+  revalidateTag("mosque-programs", "max");
+  revalidateTag("enrollments", "max");
+
   if (mosque?.slug) {
-    revalidatePath(`/m/${mosque.slug}/admin/programs`);
     redirect(`/m/${mosque.slug}/admin/programs`);
   }
 

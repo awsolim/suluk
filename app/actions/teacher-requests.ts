@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function requestToJoinAsTeacher(mosqueId: string) {
@@ -65,7 +65,7 @@ export async function requestToJoinAsTeacher(mosqueId: string) {
     return { error: `Failed to submit request: ${insertError.message}` };
   }
 
-  revalidatePath("/");
+  revalidateTag("teacher-requests", "max");
 
   return { success: true };
 }
@@ -143,17 +143,8 @@ export async function approveTeacherRequest(
     return { error: `Failed to create membership: ${membershipError.message}` };
   }
 
-  // Get mosque slug for revalidation
-  const { data: mosque } = await supabase
-    .from("mosques")
-    .select("slug")
-    .eq("id", mosqueId)
-    .maybeSingle();
-
-  if (mosque?.slug) {
-    revalidatePath(`/m/${mosque.slug}/admin/teacher-requests`);
-    revalidatePath(`/m/${mosque.slug}/dashboard`);
-  }
+  revalidateTag("teacher-requests", "max");
+  revalidateTag("members", "max");
 
   return { success: true };
 }
@@ -213,16 +204,7 @@ export async function rejectTeacherRequest(
     return { error: `Failed to reject request: ${updateError.message}` };
   }
 
-  // Get mosque slug for revalidation
-  const { data: mosque } = await supabase
-    .from("mosques")
-    .select("slug")
-    .eq("id", mosqueId)
-    .maybeSingle();
-
-  if (mosque?.slug) {
-    revalidatePath(`/m/${mosque.slug}/admin/teacher-requests`);
-  }
+  revalidateTag("teacher-requests", "max");
 
   return { success: true };
 }

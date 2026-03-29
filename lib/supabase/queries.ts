@@ -528,7 +528,25 @@ export async function getAdminProgramCardsByMosqueId(mosqueId: string) {
 
   const { data: programs, error: programsError } = await supabase
     .from("programs")
-    .select("*")
+    .select(`
+      id,
+      mosque_id,
+      teacher_profile_id,
+      title,
+      description,
+      is_active,
+      is_paid,
+      price_monthly_cents,
+      created_at,
+      updated_at,
+      teacher:profiles!programs_teacher_profile_id_fkey (
+        id,
+        full_name
+      ),
+      enrollments (
+        id
+      )
+    `)
     .eq("mosque_id", mosqueId)
     .order("title", { ascending: true });
 
@@ -536,68 +554,22 @@ export async function getAdminProgramCardsByMosqueId(mosqueId: string) {
     throw new Error(`Failed to load admin program cards: ${programsError.message}`);
   }
 
-  const safePrograms = programs ?? [];
+  return (programs ?? []).map((program) => {
+    const teacher = Array.isArray(program.teacher)
+      ? program.teacher[0]
+      : program.teacher;
+    const enrollmentCount = Array.isArray(program.enrollments)
+      ? program.enrollments.length
+      : 0;
 
-  if (safePrograms.length === 0) {
-    return [];
-  }
-
-  const teacherProfileIds = Array.from(
-    new Set(
-      safePrograms
-        .map((program) => program.teacher_profile_id)
-        .filter((profileId): profileId is string => Boolean(profileId))
-    )
-  );
-
-  const programIds = safePrograms.map((program) => program.id);
-
-  const { data: teacherProfiles, error: teacherProfilesError } =
-    teacherProfileIds.length === 0
-      ? { data: [], error: null }
-      : await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", teacherProfileIds);
-
-  if (teacherProfilesError) {
-    throw new Error(
-      `Failed to load teacher profiles for admin cards: ${teacherProfilesError.message}`
-    );
-  }
-
-  const { data: enrollments, error: enrollmentsError } = await supabase
-    .from("enrollments")
-    .select("id, program_id")
-    .in("program_id", programIds);
-
-  if (enrollmentsError) {
-    throw new Error(
-      `Failed to load enrollment counts for admin cards: ${enrollmentsError.message}`
-    );
-  }
-
-  const teacherNameById = new Map(
-    (teacherProfiles ?? []).map((profile) => [
-      profile.id,
-      profile.full_name?.trim() || null,
-    ])
-  );
-
-  const enrollmentCountByProgramId = new Map<string, number>();
-
-  for (const enrollment of enrollments ?? []) {
-    const currentCount = enrollmentCountByProgramId.get(enrollment.program_id) ?? 0;
-    enrollmentCountByProgramId.set(enrollment.program_id, currentCount + 1);
-  }
-
-  return safePrograms.map((program) => ({
-    ...program,
-    teacher_name: program.teacher_profile_id
-      ? teacherNameById.get(program.teacher_profile_id) ?? null
-      : null,
-    enrolled_student_count: enrollmentCountByProgramId.get(program.id) ?? 0,
-  }));
+    return {
+      ...program,
+      teacher: undefined,
+      enrollments: undefined,
+      teacher_name: teacher?.full_name?.trim() || null,
+      enrolled_student_count: enrollmentCount,
+    };
+  });
 }
 
 export async function getTeacherDashboardStats(

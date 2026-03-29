@@ -8,33 +8,24 @@ vi.mock("@/lib/supabase/server", () => ({
 import { createClient } from "@/lib/supabase/server";
 import { getAdminProgramCardsByMosqueId } from "@/lib/supabase/queries";
 
-// Helper for multi-query functions: each .from(tableName) call returns a
-// dedicated chain that resolves to the data registered for that table.
-function mockSupabaseMultiQuery(tableDataMap: Record<string, { data: any; error?: any }>) {
-  const makeChain = (resolvedData: any, resolvedError: any = null) => {
-    const chain: any = {};
-    const methods = ["select", "eq", "in", "order"];
-    for (const m of methods) {
-      chain[m] = vi.fn().mockReturnValue(chain);
-    }
-    chain.single = vi.fn().mockResolvedValue({ data: resolvedData, error: resolvedError });
-    chain.maybeSingle = vi.fn().mockResolvedValue({ data: resolvedData, error: resolvedError });
-    Object.defineProperty(chain, "then", {
-      value: (resolve: any, reject: any) =>
-        Promise.resolve({ data: resolvedData, error: resolvedError }).then(resolve, reject),
-      writable: true,
-    });
-    return chain;
-  };
+// Helper for single-chain functions: .from() returns one chain that resolves
+// to the provided data (used when the query uses a single joined select).
+function mockSupabaseSingleQuery(data: any, error: any = null) {
+  const chain: any = {};
+  const methods = ["select", "eq", "in", "order"];
+  for (const m of methods) {
+    chain[m] = vi.fn().mockReturnValue(chain);
+  }
+  chain.single = vi.fn().mockResolvedValue({ data, error });
+  chain.maybeSingle = vi.fn().mockResolvedValue({ data, error });
+  Object.defineProperty(chain, "then", {
+    value: (resolve: any, reject: any) =>
+      Promise.resolve({ data, error }).then(resolve, reject),
+    writable: true,
+  });
 
   const client: any = {
-    from: vi.fn((table: string) => {
-      const entry = tableDataMap[table];
-      if (entry) {
-        return makeChain(entry.data, entry.error ?? null);
-      }
-      return makeChain([], null);
-    }),
+    from: vi.fn().mockReturnValue(chain),
     auth: {
       getUser: vi.fn().mockResolvedValue({
         data: { user: { id: "user-1" } },
@@ -55,20 +46,19 @@ describe("getAdminProgramCardsByMosqueId", () => {
   });
 
   it("US-ADMIN-PC1: returns empty array when no programs exist", async () => {
-    const supabase = mockSupabaseMultiQuery({
-      programs: { data: [] },
-    });
+    const supabase = mockSupabaseSingleQuery([]);
     vi.mocked(createClient).mockResolvedValue(supabase);
 
     const result = await getAdminProgramCardsByMosqueId("mosque-1");
 
     expect(result).toEqual([]);
-    // Only the programs query should have been called — early return path
+    // Single joined query — from("programs") called once
     expect(supabase.from).toHaveBeenCalledWith("programs");
     expect(supabase.from).toHaveBeenCalledTimes(1);
   });
 
   it("US-ADMIN-PC1: maps teacher names and enrollment counts onto programs correctly", async () => {
+    // Programs now include embedded teacher and enrollments from the joined select
     const programs = [
       {
         id: "prog-1",
@@ -76,6 +66,9 @@ describe("getAdminProgramCardsByMosqueId", () => {
         title: "Quran Basics",
         teacher_profile_id: "teacher-1",
         is_active: true,
+        teacher: { id: "teacher-1", full_name: "Sheikh Ahmed" },
+        // 2 enrollments in prog-1
+        enrollments: [{ id: "e1" }, { id: "e2" }],
       },
       {
         id: "prog-2",
@@ -83,25 +76,13 @@ describe("getAdminProgramCardsByMosqueId", () => {
         title: "Arabic Fundamentals",
         teacher_profile_id: null,
         is_active: true,
+        teacher: null,
+        // 1 enrollment in prog-2
+        enrollments: [{ id: "e3" }],
       },
     ];
 
-    const teacherProfiles = [
-      { id: "teacher-1", full_name: "Sheikh Ahmed" },
-    ];
-
-    // 3 enrollments: 2 in prog-1, 1 in prog-2
-    const enrollments = [
-      { id: "e1", program_id: "prog-1" },
-      { id: "e2", program_id: "prog-1" },
-      { id: "e3", program_id: "prog-2" },
-    ];
-
-    const supabase = mockSupabaseMultiQuery({
-      programs: { data: programs },
-      profiles: { data: teacherProfiles },
-      enrollments: { data: enrollments },
-    });
+    const supabase = mockSupabaseSingleQuery(programs);
     vi.mocked(createClient).mockResolvedValue(supabase);
 
     const result = await getAdminProgramCardsByMosqueId("mosque-1");
@@ -112,15 +93,18 @@ describe("getAdminProgramCardsByMosqueId", () => {
     expect(prog1).toBeDefined();
     expect(prog1!.teacher_name).toBe("Sheikh Ahmed");
     expect(prog1!.enrolled_student_count).toBe(2);
+    // teacher and enrollments keys should be removed
+    expect(prog1!.teacher).toBeUndefined();
+    expect(prog1!.enrollments).toBeUndefined();
 
     const prog2 = result.find((p: any) => p.id === "prog-2");
     expect(prog2).toBeDefined();
-    // No teacher_profile_id → teacher_name should be null
+    // No teacher → teacher_name should be null
     expect(prog2!.teacher_name).toBeNull();
     expect(prog2!.enrolled_student_count).toBe(1);
   });
 
-  it("US-ADMIN-PC1: uses null teacher_name when teacher profile is missing from profiles query", async () => {
+  it("US-ADMIN-PC1: uses null teacher_name when teacher join returns null", async () => {
     const programs = [
       {
         id: "prog-1",
@@ -128,15 +112,12 @@ describe("getAdminProgramCardsByMosqueId", () => {
         title: "Quran Advanced",
         teacher_profile_id: "teacher-999",
         is_active: true,
+        teacher: null,
+        enrollments: [],
       },
     ];
 
-    // profiles returns empty — teacher not found
-    const supabase = mockSupabaseMultiQuery({
-      programs: { data: programs },
-      profiles: { data: [] },
-      enrollments: { data: [] },
-    });
+    const supabase = mockSupabaseSingleQuery(programs);
     vi.mocked(createClient).mockResolvedValue(supabase);
 
     const result = await getAdminProgramCardsByMosqueId("mosque-1");
@@ -154,13 +135,12 @@ describe("getAdminProgramCardsByMosqueId", () => {
         title: "Tajweed",
         teacher_profile_id: null,
         is_active: true,
+        teacher: null,
+        enrollments: [],
       },
     ];
 
-    const supabase = mockSupabaseMultiQuery({
-      programs: { data: programs },
-      enrollments: { data: [] },
-    });
+    const supabase = mockSupabaseSingleQuery(programs);
     vi.mocked(createClient).mockResolvedValue(supabase);
 
     const result = await getAdminProgramCardsByMosqueId("mosque-1");

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import {
   getEnrollmentsForStudentInMosque,
-  getMosqueMembershipForUser,
   getProgramsByMosqueIdIncludingInactive,
   getProgramsForTeacherInMosque,
 } from "@/lib/supabase/queries";
@@ -18,7 +20,7 @@ type ClassesPageProps = {
 export default async function ClassesPage({ params }: ClassesPageProps) {
   const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   const primaryColor = mosque.primary_color || "#111827";
 
 
@@ -26,13 +28,13 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
     notFound();
   }
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
 
   if (!profile) {
     redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/classes`)}`);
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
 
   const isMosqueAdmin = membership?.role === "mosque_admin";
   const isTeacher = membership?.role === "teacher";

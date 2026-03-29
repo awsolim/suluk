@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getMosqueBySlug } from "@/lib/supabase/queries";
+import { getCachedMosqueBySlug } from "@/lib/supabase/cached-queries";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -23,7 +23,7 @@ export default async function MosqueHomePage({ params }: PageProps) {
   const supabase = await createClient();
 
   // Load the mosque for this tenant slug.
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
 
   // If no mosque matches the slug, show Next.js 404 page.
   if (!mosque) {

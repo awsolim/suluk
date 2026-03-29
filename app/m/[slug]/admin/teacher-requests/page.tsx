@@ -1,10 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
-  getPendingTeacherRequests,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import { getPendingTeacherRequests } from "@/lib/supabase/queries";
 import TeacherRequestsList from "./TeacherRequestsList";
 
 type TeacherRequestsPageProps = {
@@ -16,10 +16,10 @@ export default async function TeacherRequestsPage({
 }: TeacherRequestsPageProps) {
   const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   if (!mosque) notFound();
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
   if (!profile) {
     redirect(
       `/m/${slug}/login?next=${encodeURIComponent(
@@ -28,7 +28,7 @@ export default async function TeacherRequestsPage({
     );
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
   if (membership?.role !== "mosque_admin") notFound();
 
   const requests = await getPendingTeacherRequests(mosque.id);

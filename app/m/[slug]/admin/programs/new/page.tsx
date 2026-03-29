@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createProgram } from "@/app/actions/programs";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
-  getTeachersForMosque,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import { getTeachersForMosque } from "@/lib/supabase/queries";
 import SubmitButton from "@/components/ui/SubmitButton";
 import ProgramScheduleEditor from "@/components/programs/ProgramScheduleEditor";
 
@@ -21,13 +21,13 @@ export default async function NewProgramPage({
 }: NewProgramPageProps) {
   const { slug } = await params; // Read the tenant slug from the route so the page stays mosque-scoped.
 
-  const mosque = await getMosqueBySlug(slug); // Load the mosque for this slug.
+  const mosque = await getCachedMosqueBySlug(slug); // Load the mosque for this slug.
 
   if (!mosque) {
     notFound(); // Hide the page behind a normal 404 if the mosque does not exist.
   }
 
-  const profile = await getProfileForCurrentUser(); // Load the signed-in user's profile.
+  const profile = await getCachedProfile(); // Load the signed-in user's profile.
 
   if (!profile) {
     redirect(
@@ -35,7 +35,7 @@ export default async function NewProgramPage({
     ); // Require login before accessing admin creation.
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped membership.
+  const membership = await getCachedMembership(profile.id, mosque.id); // Load the user's mosque-scoped membership.
 
   const isMosqueAdmin = membership?.role === "mosque_admin";
 const isTeacher = membership?.role === "teacher";

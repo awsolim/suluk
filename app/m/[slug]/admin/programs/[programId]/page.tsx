@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import {
   getProgramByIdIncludingInactiveForMosque,
   getEnrollmentsForProgramInAdminView,
   getProfileById,
@@ -21,13 +23,13 @@ export default async function AdminProgramDetailPage({
 }: AdminProgramDetailPageProps) {
   const { slug, programId } = await params; // Read the tenant slug and program id so the page stays mosque-scoped.
 
-  const mosque = await getMosqueBySlug(slug); // Load the mosque for this tenant slug.
+  const mosque = await getCachedMosqueBySlug(slug); // Load the mosque for this tenant slug.
 
   if (!mosque) {
     notFound(); // Hide invalid mosque slugs behind a normal 404.
   }
 
-  const profile = await getProfileForCurrentUser(); // Load the signed-in profile for admin authorization.
+  const profile = await getCachedProfile(); // Load the signed-in profile for admin authorization.
 
   if (!profile) {
     redirect(
@@ -35,7 +37,7 @@ export default async function AdminProgramDetailPage({
     ); // Require login before allowing access to admin program detail.
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped role.
+  const membership = await getCachedMembership(profile.id, mosque.id); // Load the user's mosque-scoped role.
 
   const isMosqueAdmin = membership?.role === "mosque_admin";
 const isTeacher = membership?.role === "teacher";

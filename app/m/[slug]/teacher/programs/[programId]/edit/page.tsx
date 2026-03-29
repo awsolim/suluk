@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { updateTeacherProgram } from "@/app/actions/programs";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
-  getTeacherProgramByIdInMosque,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import { getTeacherProgramByIdInMosque } from "@/lib/supabase/queries";
 import SubmitButton from "@/components/ui/SubmitButton";
 
 type TeacherProgramEditPageProps = {
@@ -21,13 +21,13 @@ export default async function TeacherProgramEditPage({
 }: TeacherProgramEditPageProps) {
   const { slug, programId } = await params; // Read the tenant slug and program id so the page stays fully mosque-scoped.
 
-  const mosque = await getMosqueBySlug(slug); // Load the mosque for this tenant route.
+  const mosque = await getCachedMosqueBySlug(slug); // Load the mosque for this tenant route.
 
   if (!mosque) {
     notFound(); // Show a normal 404 if the mosque slug is invalid.
   }
 
-  const profile = await getProfileForCurrentUser(); // Load the signed-in profile for teacher authorization.
+  const profile = await getCachedProfile(); // Load the signed-in profile for teacher authorization.
 
   if (!profile) {
     redirect(
@@ -37,7 +37,7 @@ export default async function TeacherProgramEditPage({
     ); // Require login before allowing access to the teacher edit page.
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped membership row.
+  const membership = await getCachedMembership(profile.id, mosque.id); // Load the user's mosque-scoped membership row.
 
   if (!membership || membership.role !== "teacher") {
     notFound(); // Hide teacher edit routes from non-teachers.

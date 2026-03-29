@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import {
   getTeacherProgramByIdInMosque,
   getEnrollmentsForProgramInTeacherView,
   getAnnouncementsForProgram,
@@ -184,7 +186,7 @@ export default async function TeacherProgramDetailPage({
   const { posted } = await searchParams;
   const supabase = await createClient();
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   const primaryColor = mosque.primary_color || "#111827";
   const secondaryColor = mosque.secondary_color || "#111827";
 
@@ -193,7 +195,7 @@ export default async function TeacherProgramDetailPage({
     notFound();
   }
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
 
   if (!profile) {
     redirect(
@@ -201,7 +203,7 @@ export default async function TeacherProgramDetailPage({
     );
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
 
   if (!membership || membership.role !== "teacher") {
     notFound();

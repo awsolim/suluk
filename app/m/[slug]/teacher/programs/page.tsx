@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
-  getProgramsForTeacherInMosque,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import { getProgramsForTeacherInMosque } from "@/lib/supabase/queries";
 
 type TeacherProgramsPageProps = {
   params: Promise<{
@@ -18,13 +18,13 @@ export default async function TeacherProgramsPage({
 }: TeacherProgramsPageProps) {
   const { slug } = await params; // Read the tenant slug so teacher access stays mosque-specific.
 
-  const mosque = await getMosqueBySlug(slug); // Load the mosque for this tenant slug.
+  const mosque = await getCachedMosqueBySlug(slug); // Load the mosque for this tenant slug.
 
   if (!mosque) {
     notFound(); // Hide the page behind a normal 404 if the mosque slug does not exist.
   }
 
-  const profile = await getProfileForCurrentUser(); // Load the current signed-in profile.
+  const profile = await getCachedProfile(); // Load the current signed-in profile.
 
   if (!profile) {
     redirect(
@@ -32,7 +32,7 @@ export default async function TeacherProgramsPage({
     ); // Require login before allowing teacher access.
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id); // Load the user's mosque-scoped membership row.
+  const membership = await getCachedMembership(profile.id, mosque.id); // Load the user's mosque-scoped membership row.
 
   if (!membership || membership.role !== "teacher") {
     notFound(); // Hide teacher routes from non-teachers.

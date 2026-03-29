@@ -1,5 +1,8 @@
 import { redirect, notFound } from "next/navigation";
-import { getMosqueBySlug, getMosqueMembershipForUser } from "@/lib/supabase/queries";
+import {
+  getCachedMosqueBySlug,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
 import { createClient } from "@/lib/supabase/server";
 import { ChooseRoleForm } from "./ChooseRoleForm";
 
@@ -9,7 +12,7 @@ type PageProps = {
 
 export default async function ChooseRolePage({ params }: PageProps) {
   const { slug } = await params;
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   if (!mosque) notFound();
 
   const supabase = await createClient();
@@ -22,7 +25,7 @@ export default async function ChooseRolePage({ params }: PageProps) {
   }
 
   // If user already has a membership, skip to dashboard
-  const membership = await getMosqueMembershipForUser(user.id, mosque.id);
+  const membership = await getCachedMembership(user.id, mosque.id);
   if (membership) {
     redirect(`/m/${slug}/dashboard`);
   }

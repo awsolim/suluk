@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import {
   getProgramsByMosqueId,
   getActiveTagsForMosque,
   getEnrollmentsForStudentInMosque,
@@ -24,14 +26,14 @@ export default async function ProgramsPage({
   const { slug } = await params;
   const { tag, q } = await searchParams;
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   if (!mosque) notFound();
 
   const primaryColor = mosque.primary_color || "#111827";
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
   const membership = profile
-    ? await getMosqueMembershipForUser(profile.id, mosque.id)
+    ? await getCachedMembership(profile.id, mosque.id)
     : null;
 
   const supabase = await createClient();

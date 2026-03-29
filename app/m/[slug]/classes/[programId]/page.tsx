@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import {
   getProgramByIdForMosque,
-  getProfileForCurrentUser,
   getEnrollmentForStudent,
-  getMosqueMembershipForUser,
   getAnnouncementsForProgram,
   getProgramSubscriptionForStudent,
 } from "@/lib/supabase/queries";
@@ -54,13 +56,13 @@ export default async function StudentClassPage({
   const { slug, programId } = await params;
   const supabase = await createClient();
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
 
   if (!mosque) {
     notFound();
   }
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
 
   if (!profile) {
     redirect(
@@ -68,7 +70,7 @@ export default async function StudentClassPage({
     );
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
 
   if (
     membership?.role === "teacher" ||

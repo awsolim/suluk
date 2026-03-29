@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { signup } from "@/app/actions/auth";
-import { getMosqueBySlug } from "@/lib/supabase/queries";
+import { getCachedMosqueBySlug } from "@/lib/supabase/cached-queries";
 import SubmitButton from "@/components/ui/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ export default async function TenantSignupPage({
 }: TenantSignupPageProps) {
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   if (!mosque) notFound();
 
   const error = resolvedSearchParams.error;

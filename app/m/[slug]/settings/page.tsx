@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
-  getProfileForCurrentUser,
-  getMosqueBySlug,
-  getMosqueMembershipForUser,
-  getTeacherRequestForUser,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import { getTeacherRequestForUser } from "@/lib/supabase/queries";
 import { getRoleLabel } from "@/lib/nav";
 import { logout } from "@/app/actions/auth";
 import { ProfileCard } from "@/components/settings/ProfileCard";
@@ -21,13 +21,13 @@ export default async function SettingsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   if (!mosque) redirect("/");
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
   if (!profile) redirect(`/m/${slug}/login`);
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
   const role = membership?.role || "student";
   const roleLabel = getRoleLabel(role);
   const primaryColor = mosque.primary_color || "#111827";

@@ -1,10 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
-  getMosqueMembers,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import { getMosqueMembers } from "@/lib/supabase/queries";
 import { isAdminOrTeacher } from "@/lib/permissions";
 import MembersTable from "./MembersTable";
 
@@ -19,13 +19,13 @@ export default async function AdminMembersPage({
 }: AdminMembersPageProps) {
   const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
 
   if (!mosque) {
     notFound();
   }
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
 
   if (!profile) {
     redirect(
@@ -33,7 +33,7 @@ export default async function AdminMembersPage({
     );
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
 
   if (!isAdminOrTeacher(membership?.role)) {
     notFound();

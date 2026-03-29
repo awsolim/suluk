@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import {
   getEnrollmentsForStudentInMosque,
-  getMosqueMembershipForUser,
   getTeacherDashboardStats,
   getAdminDashboardStats,
   getLatestAnnouncementsForPrograms,
@@ -39,7 +41,7 @@ const DEFAULT_AVATAR =
 export default async function DashboardPage({ params }: PageProps) {
   const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
   const primaryColor = "var(--primary-color)";
   const secondaryColor = "var(--secondary-color)";
 
@@ -47,13 +49,13 @@ export default async function DashboardPage({ params }: PageProps) {
     notFound();
   }
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
 
   if (!profile) {
     redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/dashboard`)}`);
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
 
   if (membership?.role === "parent") {
     return (

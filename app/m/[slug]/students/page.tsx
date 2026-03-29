@@ -1,10 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import {
-  getMosqueBySlug,
-  getProfileForCurrentUser,
-  getMosqueMembershipForUser,
-  getEnrollmentsForTeacherProgramsInMosque,
-} from "@/lib/supabase/queries";
+  getCachedMosqueBySlug,
+  getCachedProfile,
+  getCachedMembership,
+} from "@/lib/supabase/cached-queries";
+import { getEnrollmentsForTeacherProgramsInMosque } from "@/lib/supabase/queries";
 import StudentListClient from "./StudentListClient";
 
 type TeacherStudentsPageProps = {
@@ -18,19 +18,19 @@ export default async function TeacherStudentsPage({
 }: TeacherStudentsPageProps) {
   const { slug } = await params;
 
-  const mosque = await getMosqueBySlug(slug);
+  const mosque = await getCachedMosqueBySlug(slug);
 
   if (!mosque) {
     notFound();
   }
 
-  const profile = await getProfileForCurrentUser();
+  const profile = await getCachedProfile();
 
   if (!profile) {
     redirect(`/m/${slug}/login?next=${encodeURIComponent(`/m/${slug}/students`)}`);
   }
 
-  const membership = await getMosqueMembershipForUser(profile.id, mosque.id);
+  const membership = await getCachedMembership(profile.id, mosque.id);
 
   if (!membership || membership.role !== "teacher") {
     notFound();

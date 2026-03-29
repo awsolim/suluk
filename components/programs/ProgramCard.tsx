@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Clock } from "lucide-react";
 
 const DEFAULT_PROGRAM_THUMBNAIL =
@@ -82,10 +83,13 @@ export function ProgramCard({
     >
       {/* Image area */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-        <img
+        <Image
           src={program.thumbnail_url || DEFAULT_PROGRAM_THUMBNAIL}
           alt={program.title}
+          width={400}
+          height={300}
           className="h-full w-full object-cover transition-transform group-hover:scale-105"
+          unoptimized={!(program.thumbnail_url)}
         />
 
         {/* Audience badges - top left */}

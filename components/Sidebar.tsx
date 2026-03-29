@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import SidebarIcon from "@/components/SidebarIcon";
@@ -33,10 +34,13 @@ export default function Sidebar({
       {/* Mosque branding */}
       <div className="flex items-center gap-3 px-4 py-5">
         <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-          <img
+          <Image
             src={mosqueLogoSrc}
             alt={mosqueName}
+            width={36}
+            height={36}
             className="h-full w-full object-cover"
+            unoptimized={mosqueLogoSrc.startsWith("data:")}
           />
         </div>
         <div className="min-w-0">

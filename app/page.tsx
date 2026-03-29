@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   getAllMosques,
   getMembershipsForUser,
@@ -94,10 +95,13 @@ export default async function HomePage() {
               >
                 <div className="flex items-center gap-3">
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-                    <img
+                    <Image
                       src={mosqueLogoSrc}
                       alt={mosque.name}
+                      width={56}
+                      height={56}
                       className="h-full w-full object-cover"
+                      unoptimized={mosqueLogoSrc.startsWith("data:")}
                     />
                   </div>
 

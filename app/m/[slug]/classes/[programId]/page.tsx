@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import {
   getCachedMosqueBySlug,
@@ -273,10 +274,13 @@ export default async function StudentClassPage({
                 >
                   <div className="flex items-start gap-3">
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-                      <img
+                      <Image
                         src={authorAvatarSrc}
                         alt={author?.full_name || "Teacher"}
+                        width={40}
+                        height={40}
                         className="h-full w-full object-cover"
+                        unoptimized={authorAvatarSrc.startsWith("data:")}
                       />
                     </div>
 

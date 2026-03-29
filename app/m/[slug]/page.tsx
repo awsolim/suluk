@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { getCachedMosqueBySlug } from "@/lib/supabase/cached-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -64,10 +65,13 @@ export default async function MosqueHomePage({ params }: PageProps) {
           style={{ backgroundColor: secondaryColor }}
         >
           <div className="mx-auto h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm md:h-24 md:w-24">
-            <img
+            <Image
               src={mosqueLogoSrc}
               alt={mosque.name}
+              width={96}
+              height={96}
               className="h-full w-full object-cover"
+              unoptimized={mosqueLogoSrc.startsWith("data:")}
             />
           </div>
 

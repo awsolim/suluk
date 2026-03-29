@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import {
   getCachedMosqueBySlug,
@@ -471,10 +472,13 @@ export default async function TeacherProgramDetailPage({
                   >
                     <div className="flex items-start gap-3">
                       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-                        <img
+                        <Image
                           src={authorAvatarSrc}
                           alt={author?.full_name || "Teacher"}
+                          width={40}
+                          height={40}
                           className="h-full w-full object-cover"
+                          unoptimized={authorAvatarSrc.startsWith("data:")}
                         />
                       </div>
 
@@ -507,18 +511,24 @@ export default async function TeacherProgramDetailPage({
 
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-                <img
-                  src={
-                    announcementAuthor?.avatar_url
-                      ? supabase.storage
-                          .from("media")
-                          .getPublicUrl(announcementAuthor.avatar_url).data
-                          .publicUrl
-                      : DEFAULT_AVATAR
-                  }
-                  alt={announcementAuthor?.full_name || "Teacher"}
-                  className="h-full w-full object-cover"
-                />
+                {(() => {
+                  const authorSrc = announcementAuthor?.avatar_url
+                    ? supabase.storage
+                        .from("media")
+                        .getPublicUrl(announcementAuthor.avatar_url).data
+                        .publicUrl
+                    : DEFAULT_AVATAR;
+                  return (
+                    <Image
+                      src={authorSrc}
+                      alt={announcementAuthor?.full_name || "Teacher"}
+                      width={40}
+                      height={40}
+                      className="h-full w-full object-cover"
+                      unoptimized={authorSrc.startsWith("data:")}
+                    />
+                  );
+                })()}
               </div>
 
               <div className="min-w-0">

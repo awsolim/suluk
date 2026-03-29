@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import {
   getCachedMosqueBySlug,
@@ -184,10 +185,13 @@ export default async function ProgramDetailsPage({
       </Link>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <img
+        <Image
           src={thumbnailSrc}
           alt={`${program.title} thumbnail`}
+          width={672}
+          height={192}
           className="h-48 w-full object-cover"
+          unoptimized={thumbnailSrc.startsWith("data:")}
         />
 
         <div className="space-y-1 p-4">
@@ -378,10 +382,13 @@ export default async function ProgramDetailsPage({
 
         <div className="mt-4 flex items-center gap-3">
           <div className="h-14 w-14 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
-            <img
+            <Image
               src={teacherAvatarSrc}
               alt={teacherName}
+              width={56}
+              height={56}
               className="h-full w-full object-cover"
+              unoptimized={teacherAvatarSrc.startsWith("data:")}
             />
           </div>
 

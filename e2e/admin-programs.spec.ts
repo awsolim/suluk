@@ -24,31 +24,24 @@ test.describe('Admin program management', () => {
 
   test('A-2: admin can set program as paid with pricing', async ({ page }) => {
     await page.goto(`/m/${TEST_MOSQUE_SLUG}/admin/programs`);
-    // Click into a program to edit
-    await page.getByText(/free quran studies/i).click();
-    const editLink = page.getByRole('link', { name: /edit/i });
-    if (await editLink.isVisible()) {
-      await editLink.click();
-      // Look for pricing controls
-      const paidSwitch = page.getByRole('switch', { name: /paid/i });
-      if (await paidSwitch.isVisible()) {
-        await expect(paidSwitch).toBeVisible();
-      }
-    }
+    // Click into a program — admin list shows programs as link cards
+    await page.getByRole('heading', { name: /free quran studies/i }).click();
+    // On program detail, click the "Program Details" card which links to edit page
+    await page.getByRole('heading', { name: /program details/i }).click();
+    await page.waitForURL(/\/edit/);
+    // Verify the pricing section exists
+    await expect(page.getByText(/pricing/i)).toBeVisible();
   });
 
   test('A-3: admin can edit existing program pricing', async ({ page }) => {
     await page.goto(`/m/${TEST_MOSQUE_SLUG}/admin/programs`);
-    await page.getByText(/advanced arabic/i).click();
-    const editLink = page.getByRole('link', { name: /edit/i });
-    if (await editLink.isVisible()) {
-      await editLink.click();
-      // The program is already paid, look for price input
-      const priceInput = page.getByLabel(/price/i);
-      if (await priceInput.isVisible()) {
-        await expect(priceInput).toBeVisible();
-      }
-    }
+    // Use heading to avoid strict mode violation with description text
+    await page.getByRole('heading', { name: /advanced arabic/i }).click();
+    // Click the "Program Details" card which links to edit page
+    await page.getByRole('heading', { name: /program details/i }).click();
+    await page.waitForURL(/\/edit/);
+    // The program is already paid, verify pricing section is visible
+    await expect(page.getByText(/pricing/i)).toBeVisible();
   });
 
   test('A-6: admin can delete a program', async ({ page }) => {
@@ -68,15 +61,11 @@ test.describe('Admin program management', () => {
 
   test('A-9: admin can assign a teacher to a program', async ({ page }) => {
     await page.goto(`/m/${TEST_MOSQUE_SLUG}/admin/programs`);
-    await page.getByText(/upcoming program/i).click();
-    const editLink = page.getByRole('link', { name: /edit/i });
-    if (await editLink.isVisible()) {
-      await editLink.click();
-      // Look for teacher assignment dropdown
-      const teacherSelect = page.getByLabel(/teacher/i);
-      if (await teacherSelect.isVisible()) {
-        await expect(teacherSelect).toBeVisible();
-      }
-    }
+    await page.getByRole('heading', { name: /free quran studies/i }).click();
+    // Click the "Program Details" card which links to edit page
+    await page.getByRole('heading', { name: /program details/i }).click();
+    await page.waitForURL(/\/edit/);
+    // Look for teacher assignment select - the label is "Teacher"
+    await expect(page.getByLabel(/teacher/i)).toBeVisible();
   });
 });

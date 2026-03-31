@@ -33,8 +33,8 @@ test.describe('Google OAuth buttons present on all auth pages', () => {
 
   test('US-G1: global signup page has "or" divider between Google and email form', async ({ page }) => {
     await page.goto('/signup');
-    await expect(page.getByText('or')).toBeVisible();
-    // Google button should appear before the email form
+    // The "or" text is in a span with text-xs text-gray-400 — use exact match to avoid matching "or" in other words
+    await expect(page.getByText('or', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('button', { name: /continue with google/i })
     ).toBeVisible();
@@ -43,7 +43,7 @@ test.describe('Google OAuth buttons present on all auth pages', () => {
 
   test('US-G2: global login page has "or" divider between Google and email form', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByText('or')).toBeVisible();
+    await expect(page.getByText('or', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('button', { name: /continue with google/i })
     ).toBeVisible();

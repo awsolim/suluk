@@ -51,8 +51,9 @@ test.describe('Masjid creation flow', () => {
     await page.waitForURL('**/', { timeout: 10000 });
 
     await page.goto('/create-masjid');
+    // Actual labels: "Masjid Name" and "Custom URL"
     await expect(page.getByLabel(/masjid name/i)).toBeVisible();
-    await expect(page.getByLabel(/url slug/i)).toBeVisible();
+    await expect(page.getByLabel(/custom url/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /create masjid/i })).toBeVisible();
   });
 });

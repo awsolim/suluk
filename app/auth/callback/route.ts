@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
       email: user.email ?? null,
     });
 
-    // Mosque-scoped login: check membership, auto-join new users as student
+    // Mosque-scoped login: check membership, auto-join new users with selected role
     if (slug) {
       const { data: mosque } = await supabase
         .from("mosques")
@@ -107,15 +107,30 @@ export async function GET(request: NextRequest) {
           .maybeSingle();
 
         if (!existing) {
-          // Auto-join as student so the user is immediately logged into the mosque
+          // Read the role from the signup form (embedded in the redirect URL)
+          const roleParam = searchParams.get("role");
+          // Teachers require admin approval — they join as students with a pending request
+          const memberRole = roleParam === "parent" ? "parent" : "student";
+
           await supabase.from("mosque_memberships").upsert(
             {
               mosque_id: mosque.id,
               profile_id: user.id,
-              role: "student",
+              role: memberRole,
             },
             { onConflict: "mosque_id,profile_id", ignoreDuplicates: true }
           );
+
+          // If user selected "teacher", create a join request for admin approval
+          if (roleParam === "teacher") {
+            await supabase
+              .from("teacher_join_requests")
+              .insert({
+                mosque_id: mosque.id,
+                profile_id: user.id,
+                status: "pending",
+              });
+          }
         }
       }
     }

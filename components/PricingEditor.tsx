@@ -62,7 +62,7 @@ export default function PricingEditor({
       )}
 
       {/* Hidden inputs for form submission */}
-      <input type="hidden" name="is_paid" value={paid ? 'true' : 'false'} />
+      <input type="hidden" name="is_paid" value={paid ? 'on' : ''} />
       <input
         type="hidden"
         name="price_monthly_cents"

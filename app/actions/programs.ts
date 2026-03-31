@@ -161,6 +161,10 @@ export async function createProgram(formData: FormData) {
     }
   }
 
+  const isPaid = formData.get("is_paid") === "on";
+  const priceMonthlyCentsRaw = String(formData.get("price_monthly_cents") || "").trim();
+  const priceMonthlyCents = priceMonthlyCentsRaw ? parseInt(priceMonthlyCentsRaw, 10) : null;
+
   const { error: insertError } = await supabase.from("programs").insert({
     mosque_id: mosque.id,
     title,
@@ -170,6 +174,8 @@ export async function createProgram(formData: FormData) {
     schedule,
     schedule_timezone: scheduleTimezone,
     tags,
+    is_paid: isPaid,
+    price_monthly_cents: priceMonthlyCents,
   });
 
   if (insertError) {

@@ -9,24 +9,25 @@ test.describe('Admin member management', () => {
   });
 
   test('A-11: admin can view all mosque members', async ({ page }) => {
-    await expect(page.getByText(/test admin/i)).toBeVisible();
-    await expect(page.getByText(/test teacher/i)).toBeVisible();
-    await expect(page.getByText(/test student/i)).toBeVisible();
+    // Use font-medium span inside the table cells for member names
+    await expect(page.locator('table').getByText('Test Admin')).toBeVisible();
+    await expect(page.locator('table').getByText('Test Teacher')).toBeVisible();
+    await expect(page.locator('table').getByText('Test Student')).toBeVisible();
   });
 
   test('A-11: admin can see member roles', async ({ page }) => {
-    await expect(page.getByText(/admin/i).first()).toBeVisible();
-    await expect(page.getByText(/teacher/i).first()).toBeVisible();
-    await expect(page.getByText(/student/i).first()).toBeVisible();
+    await expect(page.getByText('Admin').first()).toBeVisible();
+    await expect(page.getByText('Teacher').first()).toBeVisible();
+    await expect(page.getByText('Student').first()).toBeVisible();
   });
 
   test('A-10: clicking Change Role opens the role dialog', async ({ page }) => {
     // Open actions dropdown for the student row
-    const studentRow = page.locator('tr', { hasText: /test student/i });
+    const studentRow = page.locator('tr', { hasText: 'Test Student' });
     await studentRow.getByRole('button', { name: /actions/i }).click();
 
     // Click "Change Role" menu item
-    await page.getByText(/change role/i).click();
+    await page.getByText('Change Role').click();
 
     // Dialog must open with title and role select
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -34,31 +35,31 @@ test.describe('Admin member management', () => {
   });
 
   test('A-10: Change Role dialog shows role options and Save button', async ({ page }) => {
-    const studentRow = page.locator('tr', { hasText: /test student/i });
+    const studentRow = page.locator('tr', { hasText: 'Test Student' });
     await studentRow.getByRole('button', { name: /actions/i }).click();
-    await page.getByText(/change role/i).click();
+    await page.getByText('Change Role').click();
 
-    // Should see the role select trigger with current role
-    const selectTrigger = page.getByRole('dialog').locator('[data-slot="select-trigger"]');
+    // Should see the role select trigger
+    const selectTrigger = page.getByRole('dialog').getByRole('combobox');
     await expect(selectTrigger).toBeVisible();
 
     // Open the select and verify options
     await selectTrigger.click();
-    await expect(page.getByRole('option', { name: /student/i })).toBeVisible();
-    await expect(page.getByRole('option', { name: /teacher/i })).toBeVisible();
-    await expect(page.getByRole('option', { name: /admin/i })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'Student' })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'Teacher' })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'Admin' })).toBeVisible();
 
-    // Save button should be visible but disabled when role hasn't changed
+    // Save button should be visible
     await expect(page.getByRole('button', { name: /save/i })).toBeVisible();
   });
 
   test('A-8: clicking Toggle Program Management opens the dialog for a teacher', async ({ page }) => {
     // Open actions dropdown for the teacher row
-    const teacherRow = page.locator('tr', { hasText: /test teacher/i });
+    const teacherRow = page.locator('tr', { hasText: 'Test Teacher' });
     await teacherRow.getByRole('button', { name: /actions/i }).click();
 
     // Click "Toggle Program Management" menu item
-    await page.getByText(/toggle program management/i).click();
+    await page.getByText('Toggle Program Management').click();
 
     // Dialog must open with the switch
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -67,11 +68,11 @@ test.describe('Admin member management', () => {
   });
 
   test('A-7: clicking Remove from Mosque opens the confirmation dialog', async ({ page }) => {
-    const studentRow = page.locator('tr', { hasText: /test student/i });
+    const studentRow = page.locator('tr', { hasText: 'Test Student' });
     await studentRow.getByRole('button', { name: /actions/i }).click();
 
     // Click "Remove from Mosque" menu item
-    await page.getByText(/remove from mosque/i).click();
+    await page.getByText('Remove from Mosque').click();
 
     // Confirmation dialog must open
     await expect(page.getByRole('alertdialog')).toBeVisible();
@@ -81,15 +82,15 @@ test.describe('Admin member management', () => {
   });
 
   test('A-7: cancel in remove dialog closes it without removing', async ({ page }) => {
-    const studentRow = page.locator('tr', { hasText: /test student/i });
+    const studentRow = page.locator('tr', { hasText: 'Test Student' });
     await studentRow.getByRole('button', { name: /actions/i }).click();
-    await page.getByText(/remove from mosque/i).click();
+    await page.getByText('Remove from Mosque').click();
 
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await page.getByRole('button', { name: /cancel/i }).click();
 
     // Dialog should close, student still in table
     await expect(page.getByRole('alertdialog')).not.toBeVisible();
-    await expect(page.getByText(/test student/i)).toBeVisible();
+    await expect(page.locator('table').getByText('Test Student')).toBeVisible();
   });
 });

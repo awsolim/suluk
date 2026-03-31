@@ -43,8 +43,9 @@ test.describe('Teacher dashboard', () => {
   });
 
   test('T-4: teacher can remove a student from a program', async ({ page }) => {
+    // Teachers use /classes route which shows "My Classes"
     await page.goto(`/m/${TEST_MOSQUE_SLUG}/classes`);
-    // Navigate to a class
+    // Navigate to a class - teacher sees their assigned programs
     const classLink = page.getByText(/free quran studies/i).first();
     if (await classLink.isVisible()) {
       await classLink.click();
@@ -57,11 +58,14 @@ test.describe('Teacher dashboard', () => {
   });
 
   test('T-5: teacher can view assigned classes', async ({ page }) => {
+    // Teachers see "My Classes" on the /classes page
     await page.goto(`/m/${TEST_MOSQUE_SLUG}/classes`);
-    await expect(page.getByText(/free quran studies/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /my classes/i }).first()).toBeVisible();
+    await expect(page.getByText(/free quran studies/i).first()).toBeVisible();
   });
 
   test('T-5: teacher can post announcements', async ({ page }) => {
+    // Navigate to the teacher's program detail page
     await page.goto(`/m/${TEST_MOSQUE_SLUG}/classes`);
     await page.getByText(/free quran studies/i).first().click();
     // Look for announcement form

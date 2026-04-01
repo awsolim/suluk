@@ -3,8 +3,8 @@ import {
   getCachedMosqueBySlug,
   getCachedProfile,
   getCachedMembership,
+  getCachedMosqueMembers,
 } from "@/lib/supabase/cached-queries";
-import { getMosqueMembers } from "@/lib/supabase/queries";
 import { isAdminOrTeacher } from "@/lib/permissions";
 import MembersTable from "./MembersTable";
 
@@ -39,7 +39,7 @@ export default async function AdminMembersPage({
     notFound();
   }
 
-  const members = await getMosqueMembers(mosque.id);
+  const members = await getCachedMosqueMembers(mosque.id);
 
   return (
     <section className="space-y-5">

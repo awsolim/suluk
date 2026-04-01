@@ -64,7 +64,7 @@ export function ProgramCard({
   const priceLabel = !program.is_paid
     ? "Free"
     : program.price_monthly_cents
-    ? `$${(program.price_monthly_cents / 100).toFixed(0)} / Month`
+    ? `CA$${(program.price_monthly_cents / 100).toFixed(0)} / Month`
     : null;
 
   const ctaLabel = isEnrolled

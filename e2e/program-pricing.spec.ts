@@ -48,6 +48,6 @@ test.describe('Program pricing', () => {
     await page.getByRole('heading', { name: 'Advanced Arabic' }).first().click();
     // Should show "Monthly Subscription" heading for paid programs
     await expect(page.getByRole('heading', { name: /monthly subscription/i })).toBeVisible();
-    await expect(page.getByText(/\$\d+/)).toBeVisible();
+    await expect(page.getByText(/CA\$\d+/)).toBeVisible();
   });
 });

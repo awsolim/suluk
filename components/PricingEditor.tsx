@@ -44,7 +44,7 @@ export default function PricingEditor({
 
       {paid && hasStripeAccount && (
         <div className="space-y-2">
-          <Label htmlFor="price-dollars">Monthly Price (USD)</Label>
+          <Label htmlFor="price-dollars">Monthly Price (CAD)</Label>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">$</span>
             <Input

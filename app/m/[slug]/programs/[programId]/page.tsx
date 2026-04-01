@@ -75,7 +75,7 @@ function formatMonthlyPrice(priceMonthlyCents: number | null) {
     return "Free";
   }
 
-  return `$${(priceMonthlyCents / 100).toFixed(2)}/month`;
+  return `CA$${(priceMonthlyCents / 100).toFixed(2)}/month`;
 }
 
 export default async function ProgramDetailsPage({

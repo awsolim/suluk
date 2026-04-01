@@ -124,10 +124,12 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
   }
 
   if (isTeacher) {
-    const teachingPrograms = await getProgramsForTeacherInMosque(profile.id, mosque.id);
-    const allPrograms = canManagePrograms
-      ? await getProgramsByMosqueIdIncludingInactive(mosque.id)
-      : [];
+    const [teachingPrograms, allPrograms] = await Promise.all([
+      getProgramsForTeacherInMosque(profile.id, mosque.id),
+      canManagePrograms
+        ? getProgramsByMosqueIdIncludingInactive(mosque.id)
+        : Promise.resolve([]),
+    ]);
 
     return (
       <section className="space-y-6">

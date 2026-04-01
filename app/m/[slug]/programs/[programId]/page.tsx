@@ -111,29 +111,18 @@ export default async function ProgramDetailsPage({
   const isMosqueAdmin = membership?.role === "mosque_admin";
   const isParent = membership?.role === "parent";
 
-  // Parents don't enroll themselves — they use ChildSelector
-  const enrollment =
-    profile && !isTeacher && !isMosqueAdmin && !isParent
-      ? await getEnrollmentForStudent(program.id, profile.id)
-      : null;
+  // Parallelize all user-specific data fetches
+  const isStudent = profile && !isTeacher && !isMosqueAdmin && !isParent;
 
-  const application =
-    profile && !isTeacher && !isMosqueAdmin && !isParent
-      ? await getProgramApplicationForStudent(profile.id, program.id)
-      : null;
-
-  const subscription =
-    profile && program.is_paid && !isTeacher && !isMosqueAdmin && !isParent
-      ? await getProgramSubscriptionForStudent(profile.id, program.id)
-      : null;
+  const [enrollment, application, subscription, parentChildren] = await Promise.all([
+    isStudent ? getEnrollmentForStudent(program.id, profile.id) : Promise.resolve(null),
+    isStudent ? getProgramApplicationForStudent(profile.id, program.id) : Promise.resolve(null),
+    isStudent && program.is_paid ? getProgramSubscriptionForStudent(profile.id, program.id) : Promise.resolve(null),
+    profile && isParent ? getChildrenForParent(profile.id, mosque.id) : Promise.resolve([]),
+  ]);
 
   const hasActiveSubscription = isSubscriptionActive(subscription);
 
-  // Load children for parent role
-  const parentChildren =
-    profile && isParent
-      ? await getChildrenForParent(profile.id, mosque.id)
-      : [];
   const childrenList = parentChildren.map((link: any) => ({
     id: link.profiles?.id ?? link.child_profile_id,
     full_name: link.profiles?.full_name ?? "Unknown",

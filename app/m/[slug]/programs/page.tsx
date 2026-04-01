@@ -37,7 +37,19 @@ export default async function ProgramsPage({
     : null;
 
   const supabase = await createClient();
-  const rawPrograms = await getProgramsByMosqueId(mosque.id);
+  const isParent = membership?.role === "parent";
+
+  // Parallelize all independent data fetches
+  const [rawPrograms, tags, enrollments, applications] = await Promise.all([
+    getProgramsByMosqueId(mosque.id),
+    getActiveTagsForMosque(mosque.id),
+    !isParent && profile
+      ? getEnrollmentsForStudentInMosque(profile.id, mosque.id)
+      : Promise.resolve([]),
+    !isParent && profile
+      ? getStudentProgramApplicationsInMosque(profile.id, mosque.id)
+      : Promise.resolve([]),
+  ]);
 
   // Resolve storage paths to full public URLs
   const programs = rawPrograms.map((p) => ({
@@ -49,18 +61,6 @@ export default async function ProgramsPage({
       ? { full_name: p.teacher_name, avatar_url: p.teacher_avatar_url }
       : null,
   }));
-  const tags = await getActiveTagsForMosque(mosque.id);
-
-  // For parents, skip enrollment/application lookups
-  const isParent = membership?.role === "parent";
-  const enrollments =
-    !isParent && profile
-      ? await getEnrollmentsForStudentInMosque(profile.id, mosque.id)
-      : [];
-  const applications =
-    !isParent && profile
-      ? await getStudentProgramApplicationsInMosque(profile.id, mosque.id)
-      : [];
 
   // Build lookup sets — both queries return program_id directly on each row
   const enrolledProgramIds = new Set(

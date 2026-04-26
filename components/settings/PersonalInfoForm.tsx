@@ -12,12 +12,15 @@ interface PersonalInfoFormProps {
     full_name: string;
     email: string;
     phone_number: string | null;
+    gender: string | null;
+    date_of_birth: string | null;
   };
   slug: string;
   primaryColor: string;
+  showCompletionBanner?: boolean;
 }
 
-export function PersonalInfoForm({ profile, slug, primaryColor }: PersonalInfoFormProps) {
+export function PersonalInfoForm({ profile, slug, primaryColor, showCompletionBanner }: PersonalInfoFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -38,6 +41,12 @@ export function PersonalInfoForm({ profile, slug, primaryColor }: PersonalInfoFo
     <form action={handleSubmit} className="space-y-4">
       <input type="hidden" name="slug" value={slug} />
 
+      {showCompletionBanner && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Please complete your profile before continuing.
+        </div>
+      )}
+
       {error && (
         <p className="text-sm text-destructive">{error}</p>
       )}
@@ -47,10 +56,10 @@ export function PersonalInfoForm({ profile, slug, primaryColor }: PersonalInfoFo
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="full_name">Full Name</Label>
+          <Label htmlFor="fullName">Full Name</Label>
           <Input
-            id="full_name"
-            name="full_name"
+            id="fullName"
+            name="fullName"
             defaultValue={profile.full_name}
             required
           />
@@ -68,11 +77,37 @@ export function PersonalInfoForm({ profile, slug, primaryColor }: PersonalInfoFo
         </div>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="gender">Gender <span className="text-destructive">*</span></Label>
+          <select
+            id="gender"
+            name="gender"
+            defaultValue={profile.gender || ""}
+            required
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="" disabled>Select gender</option>
+            <option value="male">Brother</option>
+            <option value="female">Sister</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dateOfBirth">Date of Birth</Label>
+          <Input
+            id="dateOfBirth"
+            name="dateOfBirth"
+            type="date"
+            defaultValue={profile.date_of_birth || ""}
+          />
+        </div>
+      </div>
+
       <div className="space-y-2">
-        <Label htmlFor="phone_number">Phone Number</Label>
+        <Label htmlFor="phoneNumber">Phone Number</Label>
         <Input
-          id="phone_number"
-          name="phone_number"
+          id="phoneNumber"
+          name="phoneNumber"
           type="tel"
           defaultValue={profile.phone_number || ""}
         />

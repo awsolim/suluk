@@ -31,10 +31,13 @@ const getCachedStripeStatus = unstable_cache(
 
 export default async function SettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ complete_profile?: string }>;
 }) {
   const { slug } = await params;
+  const { complete_profile } = await searchParams;
   const mosque = await getCachedMosqueBySlug(slug);
   if (!mosque) redirect("/");
 
@@ -75,6 +78,7 @@ export default async function SettingsPage({
               profile={profile}
               slug={slug}
               primaryColor={primaryColor}
+              showCompletionBanner={!profile.gender || complete_profile === "1"}
             />
           </div>
 

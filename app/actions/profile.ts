@@ -9,6 +9,7 @@ export async function updateProfile(formData: FormData) {
   const phoneNumber = String(formData.get("phoneNumber") ?? "").trim();
   const age = Number(formData.get("age") ?? 0);
   const gender = String(formData.get("gender") ?? "").trim();
+  const dateOfBirth = String(formData.get("dateOfBirth") ?? "").trim();
   const avatar = formData.get("avatar");
 
   if (!slug) {
@@ -17,6 +18,10 @@ export async function updateProfile(formData: FormData) {
 
   if (fullName.length < 2) {
     return { error: "Name must be at least 2 characters." };
+  }
+
+  if (gender && gender !== "male" && gender !== "female") {
+    return { error: "Gender must be 'male' or 'female'." };
   }
 
   const supabase = await createClient();
@@ -75,6 +80,7 @@ export async function updateProfile(formData: FormData) {
   if (phoneNumber) updateData.phone_number = phoneNumber;
   if (age && age > 0) updateData.age = age;
   if (gender) updateData.gender = gender;
+  if (dateOfBirth) updateData.date_of_birth = dateOfBirth;
 
   if (nextAvatarPath) {
     updateData.avatar_url = nextAvatarPath;

@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
       email: user.email ?? null,
     });
 
-    // Mosque-scoped login: check membership, auto-join new users as student
+    // Mosque-scoped login: check if user has a membership, redirect new users to choose-role
     if (slug) {
       const { data: mosque } = await supabase
         .from("mosques")
@@ -107,16 +107,32 @@ export async function GET(request: NextRequest) {
           .maybeSingle();
 
         if (!existing) {
-          // Auto-join as student so the user is immediately logged into the mosque
-          await supabase.from("mosque_memberships").upsert(
-            {
-              mosque_id: mosque.id,
-              profile_id: user.id,
-              role: "student",
-            },
-            { onConflict: "mosque_id,profile_id", ignoreDuplicates: true }
+          // New user — redirect to role selection before joining
+          const chooseRoleUrl = `/m/${slug}/choose-role`;
+          const res = NextResponse.redirect(new URL(chooseRoleUrl, base));
+          responseCookies.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options),
           );
+          return res;
         }
+      }
+    }
+
+    // Profile completion: returning users with missing required fields
+    if (slug) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("gender")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile && !profile.gender) {
+        const settingsUrl = `/m/${slug}/settings?complete_profile=1&next=${encodeURIComponent(next)}`;
+        const res = NextResponse.redirect(new URL(settingsUrl, base));
+        responseCookies.forEach(({ name, value, options }) =>
+          res.cookies.set(name, value, options),
+        );
+        return res;
       }
     }
 
@@ -137,21 +153,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Profile completion: if required fields are missing, redirect to settings
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("gender")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profile && !profile.gender && slug) {
-      const settingsUrl = `/m/${slug}/settings?complete_profile=1&next=${encodeURIComponent(next)}`;
-      const res = NextResponse.redirect(new URL(settingsUrl, base));
-      responseCookies.forEach(({ name, value, options }) =>
-        res.cookies.set(name, value, options),
-      );
-      return res;
-    }
   }
 
   // --- Redirect to the final destination with session cookies ---

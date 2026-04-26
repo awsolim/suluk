@@ -125,6 +125,17 @@ export async function assignRole(formData: FormData) {
     });
   }
 
+  // Check if profile is complete — redirect to settings if not
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("gender")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile && !profile.gender) {
+    redirect(`/m/${slug}/settings?complete_profile=1&next=${encodeURIComponent(`/m/${slug}/dashboard`)}`);
+  }
+
   redirect(`/m/${slug}/dashboard`);
 }
 

@@ -136,6 +136,22 @@ export async function GET(request: NextRequest) {
         return res;
       }
     }
+
+    // Profile completion: if required fields are missing, redirect to settings
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("gender")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile && !profile.gender && slug) {
+      const settingsUrl = `/m/${slug}/settings?complete_profile=1&next=${encodeURIComponent(next)}`;
+      const res = NextResponse.redirect(new URL(settingsUrl, base));
+      responseCookies.forEach(({ name, value, options }) =>
+        res.cookies.set(name, value, options),
+      );
+      return res;
+    }
   }
 
   // --- Redirect to the final destination with session cookies ---

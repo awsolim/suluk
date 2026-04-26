@@ -34,10 +34,10 @@ export default async function SettingsPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ complete_profile?: string }>;
+  searchParams: Promise<{ complete_profile?: string; next?: string }>;
 }) {
   const { slug } = await params;
-  const { complete_profile } = await searchParams;
+  const { complete_profile, next } = await searchParams;
   const mosque = await getCachedMosqueBySlug(slug);
   if (!mosque) redirect("/");
 
@@ -79,6 +79,7 @@ export default async function SettingsPage({
               slug={slug}
               primaryColor={primaryColor}
               showCompletionBanner={!profile.gender || complete_profile === "1"}
+              redirectAfterSave={complete_profile === "1" ? (next || `/m/${slug}/dashboard`) : undefined}
             />
           </div>
 

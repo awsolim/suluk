@@ -26,16 +26,12 @@ export async function applyToProgram(formData: FormData) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, gender")
+    .select("id")
     .eq("id", user.id)
     .maybeSingle();
 
   if (profileError || !profile) {
     throw new Error("Could not load student profile.");
-  }
-
-  if (!profile.gender) {
-    redirect(`/m/${slug}/settings?complete_profile=1`);
   }
 
   const { data: mosque, error: mosqueError } = await supabase

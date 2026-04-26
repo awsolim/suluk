@@ -18,9 +18,10 @@ interface PersonalInfoFormProps {
   slug: string;
   primaryColor: string;
   showCompletionBanner?: boolean;
+  redirectAfterSave?: string;
 }
 
-export function PersonalInfoForm({ profile, slug, primaryColor, showCompletionBanner }: PersonalInfoFormProps) {
+export function PersonalInfoForm({ profile, slug, primaryColor, showCompletionBanner, redirectAfterSave }: PersonalInfoFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -31,6 +32,8 @@ export function PersonalInfoForm({ profile, slug, primaryColor, showCompletionBa
     const result = await updateProfile(formData);
     if (result?.error) {
       setError(result.error);
+    } else if (redirectAfterSave) {
+      router.push(redirectAfterSave);
     } else {
       setSuccess(true);
       router.refresh();

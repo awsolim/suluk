@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { createPortal } from "react-dom";
+import { Upload } from "tus-js-client";
 import { ApplicationDecisionModal, ApplicationReviewOverlay, type ApplicationRow } from "@/components/data/application-review";
 import { ChildrenManager } from "@/components/data/children-manager";
 import { TransitionLink } from "@/components/layout/transition-link";
@@ -120,7 +121,7 @@ type ProgramTrackSwitchRequestWithContext = ProgramTrackSwitchRequestRow & {
   program?: Program | null;
   student?: StudentDisplay | null;
 };
-type TeacherDisplay = Pick<Profile, "id" | "full_name" | "avatar_url" | "teacher_credentials" | "teacher_whatsapp_number">;
+type TeacherDisplay = Pick<Profile, "id" | "full_name" | "email" | "phone_number" | "avatar_url" | "teacher_credentials" | "teacher_whatsapp_number">;
 type StudentDisplay = Pick<Profile, "id" | "full_name" | "email" | "phone_number" | "avatar_url" | "age" | "gender" | "date_of_birth" | "account_type">;
 type ParentDisplay = Pick<Profile, "id" | "full_name" | "email" | "phone_number" | "avatar_url">;
 type DirectorOption = Pick<Profile, "id" | "full_name" | "email" | "phone_number" | "teacher_credentials" | "teacher_whatsapp_number">;
@@ -134,6 +135,71 @@ type ProgramWithTeacher = Program & {
 type TeacherProgramRole = "director" | "instructor";
 type PaymentType = "monthly" | "annual";
 type ProgramEditorMediaRow = { id: string; url: string; title: string; mediaType: string; file?: File | null; previewUrl?: string };
+
+const MAX_PROGRAM_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_PROGRAM_VIDEO_BYTES = 75 * 1024 * 1024;
+
+function programMediaType(file: Pick<File, "name" | "type">): "photo" | "video" | null {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (file.type.startsWith("video/") || ["mp4", "webm", "mov", "m4v"].includes(extension)) return "video";
+  if (file.type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(extension)) return "photo";
+  return null;
+}
+
+function validateProgramMediaFile(file: File) {
+  const mediaType = programMediaType(file);
+  if (!mediaType) return "Use a JPEG, PNG, WebP, GIF, MP4, WebM, or MOV file.";
+  const maxBytes = mediaType === "video" ? MAX_PROGRAM_VIDEO_BYTES : MAX_PROGRAM_IMAGE_BYTES;
+  if (file.size > maxBytes) return `${mediaType === "video" ? "Video" : "Image"} is too large (max ${mediaType === "video" ? "75" : "10"} MB).`;
+  return null;
+}
+
+async function uploadProgramMediaFile(programId: string, file: File) {
+  const validationError = validateProgramMediaFile(file);
+  if (validationError) throw new Error(validationError);
+  const accessToken = await getCurrentAccessToken();
+  if (!accessToken) throw new Error("Log in required.");
+
+  const response = await fetch(`/api/programs/${programId}/media/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
+  });
+  const result = (await response.json().catch(() => ({}))) as { path?: string; token?: string; url?: string; mediaType?: "photo" | "video"; error?: string };
+  if (!response.ok || !result.path || !result.token || !result.url || !result.mediaType) {
+    throw new Error(result.error ?? "Could not prepare media upload.");
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) throw new Error("Media storage is not configured.");
+  const endpointUrl = new URL("/storage/v1/upload/resumable", supabaseUrl);
+  if (endpointUrl.hostname.endsWith(".supabase.co")) {
+    endpointUrl.hostname = endpointUrl.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co");
+  }
+  await new Promise<void>((resolve, reject) => {
+    const upload = new Upload(file, {
+      endpoint: endpointUrl.toString(),
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: { "x-signature": result.token as string },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      chunkSize: 6 * 1024 * 1024,
+      metadata: {
+        bucketName: "media",
+        objectName: result.path as string,
+        contentType: file.type || (result.mediaType === "video" ? "video/mp4" : "image/jpeg"),
+        cacheControl: "3600",
+      },
+      onError: (error) => reject(error),
+      onSuccess: () => resolve(),
+    });
+    void upload.findPreviousUploads().then((previousUploads) => {
+      if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]);
+      upload.start();
+    }).catch(reject);
+  });
+  return { url: result.url, mediaType: result.mediaType };
+}
 type ProgramEditorFaqRow = { id: string; question: string; answer: string };
 type ProgramEditorContentSectionRow = { id: string; title: string; description: string; durationText: string };
 type ProgramEditorTrackRow = {
@@ -1145,8 +1211,12 @@ export function ProgramDetailData({ slug, programId, section = "public" }: { slu
   const learningOutcomes = outcomes.map((item) => item.text);
   const hasLearningSection = Boolean(learningIntro) || learningOutcomes.length > 0;
   const descriptionText = program.description?.trim() ?? "";
-  const contactPhone = program.contact_phone?.trim() || details?.instructor_contact_phone?.trim() || program.teacher?.teacher_whatsapp_number?.trim() || "";
-  const contactEmail = program.contact_email?.trim() ?? "";
+  const contactPhone = program.contact_phone?.trim()
+    || details?.instructor_contact_phone?.trim()
+    || program.teacher?.phone_number?.trim()
+    || program.teacher?.teacher_whatsapp_number?.trim()
+    || "";
+  const contactEmail = program.contact_email?.trim() || program.teacher?.email?.trim() || "";
   const publicInfoRows = [
     { title: "Topics Covered", body: details?.topics_intro?.trim() ?? "" },
     { title: "Requirements", body: details?.requirements_text?.trim() ?? "" },
@@ -1227,7 +1297,7 @@ export function ProgramDetailData({ slug, programId, section = "public" }: { slu
             ) : null}
 
             {hasContentSection ? (
-              <DetailSection title="Class Content">
+              <DetailSection title="Class Schedule">
                 <div className="divide-y divide-[#E6ECEF]">
                   {classContent.map((row, index) => (
                     <div key={row.title} className="flex min-h-14 items-center gap-3 py-3">
@@ -3053,6 +3123,7 @@ export function PortalAccountData({ slug }: { slug: string }) {
       avatarUrl: updatedProfile.avatar_url?.trim() || null,
     });
     window.dispatchEvent(new Event("tareeqah:profile-name-changed"));
+    invalidateQueryPrefix("program-detail:");
     setProfileSaving(false);
     setToast({ tone: "success", message: cleanedAvatarUrl ? "Profile photo updated." : "Profile photo removed." });
   }
@@ -3188,6 +3259,9 @@ export function PortalAccountData({ slug }: { slug: string }) {
       }
     }
 
+    if (field !== "password") {
+      invalidateQueryPrefix("program-detail:");
+    }
     setEditingField(null);
     setToast({ tone: "success", message: "Saved." });
     setProfileSaving(false);
@@ -5262,32 +5336,30 @@ export function TeacherProgramCreateData({ slug }: { slug: string }) {
     if (!file) {
       return;
     }
+    const validationError = validateProgramMediaFile(file);
+    if (validationError) {
+      setToast({ tone: "error", message: validationError });
+      return;
+    }
+    const mediaType = programMediaType(file) ?? "photo";
+    if (mediaType === "video") {
+      setMediaRows((current) =>
+        current.map((row) => row.id === rowId ? { ...row, file, mediaType, previewUrl: URL.createObjectURL(file) } : row),
+      );
+      setToast({ tone: "success", message: `Video ready to upload (${(file.size / (1024 * 1024)).toFixed(1)} MB).` });
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       setMediaRows((current) =>
-        current.map((row) => row.id === rowId ? { ...row, file, mediaType: file.type.startsWith("video/") ? "video" : "photo", previewUrl: typeof reader.result === "string" ? reader.result : row.previewUrl } : row),
+        current.map((row) => row.id === rowId ? { ...row, file, mediaType, previewUrl: typeof reader.result === "string" ? reader.result : row.previewUrl } : row),
       );
     };
     reader.readAsDataURL(file);
   }
 
   async function uploadFile(programId: string, file: File) {
-    const accessToken = await getCurrentAccessToken();
-    if (!accessToken) {
-      throw new Error("Log in required.");
-    }
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch(`/api/programs/${programId}/media/upload`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
-      body: formData,
-    });
-    const result = (await response.json()) as { url?: string; mediaType?: "photo" | "video"; error?: string };
-    if (!response.ok || !result.url || !result.mediaType) {
-      throw new Error(result.error ?? "Could not upload media.");
-    }
-    return { url: result.url, mediaType: result.mediaType };
+    return uploadProgramMediaFile(programId, file);
   }
 
   async function saveNewProgram(statusOverride?: Partial<ProgramBuilderStatus>) {
@@ -5592,7 +5664,7 @@ export function TeacherProgramCreateData({ slug }: { slug: string }) {
           })),
         );
         if (contentSectionsError) {
-          throw new Error(friendlyErrorMessage(contentSectionsError, "Could not save content sections."));
+          throw new Error(friendlyErrorMessage(contentSectionsError, "Could not save class schedule."));
         }
       }
       const { data: insertedTracks, error: tracksError } = await supabase
@@ -6409,34 +6481,29 @@ export function TeacherProgramSettingsData({ slug, programId, returnHref }: { sl
     if (!program || !file) {
       return;
     }
+    const validationError = validateProgramMediaFile(file);
+    if (validationError) {
+      setMessage(validationError);
+      return;
+    }
+    const selectedMediaType = programMediaType(file) ?? "photo";
+    setMediaRows((current) => current.map((row) => row.id === rowId ? {
+      ...row,
+      mediaType: selectedMediaType,
+      previewUrl: URL.createObjectURL(file),
+    } : row));
 
     setBusy(true);
-    setMessage(null);
-    const accessToken = await getCurrentAccessToken();
-    if (!accessToken) {
+    setMessage(`Uploading ${selectedMediaType === "video" ? "video" : "photo"}…`);
+    try {
+      const result = await uploadProgramMediaFile(program.id, file);
+      setMediaRows((current) => current.map((row) => row.id === rowId ? { ...row, url: result.url, mediaType: result.mediaType } : row));
+      setMessage(`${result.mediaType === "video" ? "Video" : "Photo"} uploaded. Save changes to publish it.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not upload media.");
+    } finally {
       setBusy(false);
-      setMessage("Log in required.");
-      return;
     }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch(`/api/programs/${program.id}/media/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: formData,
-    });
-    const result = (await response.json()) as { url?: string; mediaType?: "photo" | "video"; error?: string };
-    setBusy(false);
-    if (!response.ok || !result.url || !result.mediaType) {
-      setMessage(result.error ?? "Could not upload media.");
-      return;
-    }
-
-    setMediaRows((current) => current.map((row) => row.id === rowId ? { ...row, url: result.url ?? row.url, mediaType: result.mediaType ?? row.mediaType } : row));
-    setMessage(`${result.mediaType === "video" ? "Video" : "Photo"} uploaded. Save changes to publish it.`);
   }
 
   async function saveProgram(statusOverride?: Partial<ProgramBuilderStatus>, confirmFutureApplicantsOnly = false) {
@@ -6701,7 +6768,7 @@ export function TeacherProgramSettingsData({ slug, programId, returnHref }: { sl
         })),
       );
       if (contentSectionsError) {
-        setToast({ tone: "error", message: friendlyErrorMessage(contentSectionsError, "Could not save content sections.") });
+        setToast({ tone: "error", message: friendlyErrorMessage(contentSectionsError, "Could not save class schedule.") });
         setBusy(false);
         return;
       }
@@ -7518,7 +7585,7 @@ function computeProgramBuilderMissingFields(input: {
     missing.push({ label: "FAQ: fill in every question and answer", step: "public" });
   }
   if (input.contentSectionRows.length > 0 && input.contentSectionRows.some((row) => !row.title.trim())) {
-    missing.push({ label: "Class Content: fill in every item title", step: "public" });
+    missing.push({ label: "Class Schedule: fill in every item title", step: "public" });
   }
   if (!input.contactPhoneOmitted && !input.contactPhone.trim()) missing.push({ label: "Contact phone (or mark Do not include)", step: "basics" });
   if (!input.contactEmailOmitted && !input.contactEmail.trim()) missing.push({ label: "Contact email (or mark Do not include)", step: "basics" });
@@ -8570,7 +8637,7 @@ function ProgramEditorFields({
         ) : null}
 
         {contentSectionRows.some((row) => row.title.trim()) ? (
-          <DetailSection title="Class Content">
+          <DetailSection title="Class Schedule">
             <div className="divide-y divide-[#E6ECEF]">
               {contentSectionRows.filter((row) => row.title.trim()).map((row, index) => (
                 <div key={row.id} className="flex min-h-14 items-center gap-3 py-3">
@@ -8697,7 +8764,7 @@ function ProgramEditorFields({
                   tone="accent"
                   className="border border-[#A8D4E2] text-lg"
                   onClick={() => setContentSectionRows((current) => [...current, { id: crypto.randomUUID(), title: "", description: "", durationText: "" }])}
-                  aria-label="Add content item"
+                  aria-label="Add schedule item"
                 >
                   +
                 </RowIconButton>
@@ -8718,7 +8785,7 @@ function ProgramEditorFields({
                           setContentSectionsVisible(false);
                         }
                       }}
-                      aria-label="Remove content item"
+                      aria-label="Remove schedule item"
                     >
                       <TrashIcon />
                     </RowIconButton>
@@ -8756,7 +8823,7 @@ function ProgramEditorFields({
             }}
             className="min-h-20 w-full rounded-[10px] border border-dashed border-[#9EB4BD] bg-white text-sm font-semibold text-[#2F6077]"
           >
-            Add class content section
+            Add Class Schedule section
           </button>
         )) : null}
 
@@ -8802,7 +8869,10 @@ function ProgramEditorFields({
         {showPublic ? (mediaVisible ? (
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-3 px-1">
-              <h2 className="text-base font-semibold text-[#26323A]">Class Media</h2>
+              <div>
+                <h2 className="text-base font-semibold text-[#26323A]">Class Media</h2>
+                <p className="mt-0.5 text-xs text-[#6B747B]">Images up to 10 MB · videos up to 75 MB</p>
+              </div>
               <RemoveSectionButton onClick={removeMediaSection} />
             </div>
             <div className="rounded-[14px] border border-[#D6DCE0] bg-white p-3">
@@ -8818,7 +8888,7 @@ function ProgramEditorFields({
                         </div>
                       ) : <div className="flex h-28 items-center justify-center rounded-[8px] bg-[#F2F6F7] text-[#7B858C]"><PhotoIcon /></div>}
                       <div className="flex flex-col gap-2">
-                        <label className="flex h-10 cursor-pointer items-center justify-center rounded-[8px] border border-[#D6DCE0] text-[#52616A]" aria-label="Replace media"><PhotoIcon /><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => onMediaFile(row.id, event.target.files?.[0] ?? null)} /></label>
+                        <label className="flex h-10 cursor-pointer items-center justify-center rounded-[8px] border border-[#D6DCE0] text-[#52616A]" aria-label="Replace media"><PhotoIcon /><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0] ?? null; event.target.value = ""; onMediaFile(row.id, file); }} /></label>
                         <RowIconButton onClick={() => setMediaRows((current) => current.filter((item) => item.id !== row.id))} aria-label="Remove media item"><TrashIcon /></RowIconButton>
                       </div>
                     </div>

@@ -1,6 +1,8 @@
 import { getProgramManagerProfileIds } from "@/lib/push/program-recipients";
 import { sendPushNotification } from "@/lib/push/send-push";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { getAppBaseUrl } from "@/lib/email/resend";
+import { sendProfileNotificationEmails } from "@/lib/email/notifications";
 
 export const runtime = "nodejs";
 
@@ -72,15 +74,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     const managerIds = (await getProgramManagerProfileIds(supabase, { id: programId, ...program })).filter((id) => id !== user.id);
 
     if (mosque && managerIds.length) {
+      const message = body.eventType === "joined"
+        ? `${instructorLabel} joined ${program.title} as an instructor.`
+        : `${instructorLabel} resigned as an instructor of ${program.title}.`;
       void sendPushNotification(supabase, {
         recipientProfileIds: managerIds,
         title: body.eventType === "joined" ? "Instructor joined" : "Instructor resigned",
-        body:
-          body.eventType === "joined"
-            ? `${instructorLabel} joined ${program.title} as an instructor.`
-            : `${instructorLabel} resigned as an instructor of ${program.title}.`,
+        body: message,
         url: `/m/${mosque.slug}/teacher/classes/${programId}/instructors`,
       });
+      await sendProfileNotificationEmails(supabase, managerIds, {
+        eventKey: `instructor-${body.eventType}:${programId}:${user.id}`,
+        subject: `${body.eventType === "joined" ? "Instructor joined" : "Instructor resigned"}: ${program.title}`,
+        title: body.eventType === "joined" ? "Instructor Joined" : "Instructor Resigned",
+        message,
+        action: { label: "View Instructors", href: `${getAppBaseUrl()}/m/${mosque.slug}/teacher/classes/${programId}/instructors` },
+        replyTo: instructor?.email ?? null,
+      }).catch(() => null);
     }
 
     return Response.json({ ok: true });

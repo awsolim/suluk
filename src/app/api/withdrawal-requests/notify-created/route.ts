@@ -1,6 +1,8 @@
 import { getProgramManagerProfileIds } from "@/lib/push/program-recipients";
 import { sendPushNotification } from "@/lib/push/send-push";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { getAppBaseUrl } from "@/lib/email/resend";
+import { sendProfileNotificationEmails } from "@/lib/email/notifications";
 
 export const runtime = "nodejs";
 
@@ -58,12 +60,21 @@ export async function POST(request: Request) {
     const { data: student } = await supabase.from("profiles").select("full_name, email").eq("id", body.studentProfileId).maybeSingle();
     const managerIds = await getProgramManagerProfileIds(supabase, { id: body.programId, ...program });
     if (mosque) {
+      const message = `${student?.full_name || student?.email || "A student"} requested to withdraw from ${program.title}.`;
       void sendPushNotification(supabase, {
         recipientProfileIds: managerIds,
         title: "Withdrawal requested",
-        body: `${student?.full_name || student?.email || "A student"} requested to withdraw from ${program.title}.`,
+        body: message,
         url: `/m/${mosque.slug}/teacher/inbox?tab=withdrawals`,
       });
+      await sendProfileNotificationEmails(supabase, managerIds, {
+        eventKey: `withdrawal-requested:${withdrawalRequest.id}`,
+        subject: `Withdrawal requested: ${program.title}`,
+        title: "New Withdrawal Request",
+        message,
+        action: { label: "Review Request", href: `${getAppBaseUrl()}/m/${mosque.slug}/teacher/inbox?tab=withdrawals` },
+        replyTo: student?.email ?? null,
+      }).catch(() => null);
     }
 
     return Response.json({ ok: true });

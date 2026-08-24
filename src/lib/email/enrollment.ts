@@ -5,6 +5,7 @@ import type { Database } from "@/lib/supabase/types";
 import { escapeHtml, getAppBaseUrl, sendEmail } from "@/lib/email/resend";
 import { getProgramManagerProfileIds } from "@/lib/push/program-recipients";
 import { sendPushNotification } from "@/lib/push/send-push";
+import { sendProfileNotificationEmails } from "@/lib/email/notifications";
 
 type EnrollmentRequest = Database["public"]["Tables"]["enrollment_requests"]["Row"];
 type Program = Database["public"]["Tables"]["programs"]["Row"];
@@ -115,7 +116,7 @@ export async function sendEnrollmentSubmittedEmails(requestIds: string[], userId
 
   const supabase = createSupabaseServiceClient();
   const results = await Promise.all(
-    ownedContexts.map(async ({ program, mosque, student, parent, teacher }) => {
+    ownedContexts.map(async ({ request, program, mosque, student, parent }) => {
       const studentName = profileName(student, "A student");
       const parentName = parent ? profileName(parent, "A parent") : null;
       const requesterText = parentName ? `${parentName} submitted this request for ${studentName}.` : `${studentName} submitted this request.`;
@@ -128,27 +129,32 @@ export async function sendEnrollmentSubmittedEmails(requestIds: string[], userId
         url: teacherInboxUrl(mosque.slug),
       });
 
-      if (!teacher?.email) {
-        return { ok: true, skipped: true, reason: "Teacher profile has no email." };
-      }
-
-      const body = `
-        <p style="margin:0 0 12px;">${escapeHtml(requesterText)}</p>
-        <p style="margin:0 0 12px;"><strong>Class:</strong> ${escapeHtml(program.title)}</p>
-        <p style="margin:0;">Open your teacher inbox to review the enrollment request.</p>
-      `;
-
-      return sendEmail({
-        to: teacher.email,
+      const managerDelivery = await sendProfileNotificationEmails(supabase, managerIds, {
+        eventKey: `application-submitted:${request.id}:staff`,
         subject: `New enrollment request for ${program.title}`,
-        html: renderShell("New Enrollment Request", body, { label: "Review Request", href: teacherInboxUrl(mosque.slug) }),
-        text: `${requesterText}\nClass: ${program.title}\nReview it here: ${teacherInboxUrl(mosque.slug)}`,
+        title: "New Enrollment Request",
+        message: `${requesterText} Class: ${program.title}.`,
+        action: { label: "Review Request", href: teacherInboxUrl(mosque.slug) },
         replyTo: parent?.email ?? student?.email ?? null,
       });
+
+      const recipient = parent ?? student;
+      const confirmation = recipient?.email ? await sendEmail({
+        to: recipient.email,
+        subject: `Application received: ${program.title}`,
+        html: renderShell("Application Successfully Submitted", `<p style="margin:0 0 12px;">We received ${escapeHtml(parent ? `your application for ${studentName}` : "your application")}.</p><p style="margin:0;"><strong>Class:</strong> ${escapeHtml(program.title)}</p>`, { label: "View Application", href: portalInboxUrl(mosque.slug) }),
+        text: `Application successfully submitted\nClass: ${program.title}\nView it here: ${portalInboxUrl(mosque.slug)}`,
+        idempotencyKey: `application-submitted:${request.id}:applicant`,
+      }) : { ok: true as const, skipped: true as const, reason: "Applicant profile has no email." };
+
+      return {
+        sent: managerDelivery.sent + (confirmation.skipped ? 0 : 1),
+        skipped: managerDelivery.skipped + (confirmation.skipped ? 1 : 0),
+      };
     }),
   );
 
-  return { sent: results.filter((result) => !result.skipped).length, skipped: results.filter((result) => result.skipped).length };
+  return results.reduce((total, result) => ({ sent: total.sent + result.sent, skipped: total.skipped + result.skipped }), { sent: 0, skipped: 0 });
 }
 
 export async function sendEnrollmentReviewedEmail(requestId: string, reviewerUserId: string) {
@@ -195,6 +201,7 @@ export async function sendEnrollmentReviewedEmail(requestId: string, reviewerUse
     subject: `${title}: ${className}`,
     html: renderShell(title, body, { label: needsConfirmation ? "Complete Registration" : "Open Inbox", href: actionHref }),
     text: `${title}\nClass: ${className}\nStatus: ${status}\n${action}\n${actionHref}`,
+    idempotencyKey: `application-reviewed:${context.request.id}:${status}`,
   });
 
   return { sent: result.skipped ? 0 : 1, skipped: result.skipped ? 1 : 0 };

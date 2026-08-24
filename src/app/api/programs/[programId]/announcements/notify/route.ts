@@ -1,5 +1,7 @@
 import { sendPushNotification } from "@/lib/push/send-push";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { getAppBaseUrl } from "@/lib/email/resend";
+import { sendProfileNotificationEmails } from "@/lib/email/notifications";
 
 export const runtime = "nodejs";
 
@@ -98,12 +100,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       recipientIds.add(link.parent_profile_id);
     }
 
+    const recipientProfileIds = Array.from(recipientIds);
+    const inboxUrl = `${getAppBaseUrl()}/m/${mosque.slug}/portal/announcements`;
     void sendPushNotification(supabase, {
-      recipientProfileIds: Array.from(recipientIds),
+      recipientProfileIds,
       title: `New announcement: ${program.title}`,
       body: notificationBody(announcement.message, announcement.attachments),
       url: `/m/${mosque.slug}/portal/announcements`,
     });
+    await sendProfileNotificationEmails(supabase, recipientProfileIds, {
+      eventKey: `announcement:${announcement.id}`,
+      subject: `New announcement: ${program.title}`,
+      title: `New Announcement from ${program.title}`,
+      message: notificationBody(announcement.message, announcement.attachments),
+      action: { label: "Read Announcement", href: inboxUrl },
+    }).catch(() => null);
 
     return Response.json({ ok: true });
   } catch (error) {

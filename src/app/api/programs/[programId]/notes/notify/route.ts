@@ -1,5 +1,7 @@
 import { sendPushNotification } from "@/lib/push/send-push";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { getAppBaseUrl } from "@/lib/email/resend";
+import { sendProfileNotificationEmails } from "@/lib/email/notifications";
 
 export const runtime = "nodejs";
 
@@ -68,6 +70,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       body: notificationBody(note.message, note.attachments),
       url: `/m/${mosque.slug}/portal/announcements?tab=notes`,
     });
+    await sendProfileNotificationEmails(supabase, [note.recipient_profile_id], {
+      eventKey: `student-note:${note.id}`,
+      subject: `New note: ${program.title}`,
+      title: `A Note Was Added for ${program.title}`,
+      message: notificationBody(note.message, note.attachments),
+      action: { label: "View Note", href: `${getAppBaseUrl()}/m/${mosque.slug}/portal/announcements?tab=notes` },
+    }).catch(() => null);
 
     return Response.json({ ok: true });
   } catch (error) {

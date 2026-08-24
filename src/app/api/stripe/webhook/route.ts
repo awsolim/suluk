@@ -8,6 +8,8 @@ import { logServerError } from "@/lib/monitoring/log-error";
 import { insertProgramPayment } from "@/lib/finance/payments";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/lib/supabase/types";
+import { getAppBaseUrl } from "@/lib/email/resend";
+import { sendProfileNotificationEmails } from "@/lib/email/notifications";
 
 type ProgramPaymentTermsRow = Database["public"]["Tables"]["program_payment_terms"]["Row"];
 
@@ -104,7 +106,7 @@ async function ensureFixedDurationSchedule(
 async function notifyProgramManagers(
   supabase: ReturnType<typeof createSupabaseServiceClient>,
   programId: string,
-  payload: { title: string; body: string },
+  payload: { title: string; body: string; eventKey: string },
 ) {
   const { data: program } = await supabase
     .from("programs")
@@ -125,6 +127,13 @@ async function notifyProgramManagers(
     body: payload.body,
     url: `/m/${mosque.slug}/teacher/inbox`,
   });
+  await sendProfileNotificationEmails(supabase, managerIds, {
+    eventKey: payload.eventKey,
+    subject: `${payload.title}: ${program.title}`,
+    title: payload.title,
+    message: payload.body,
+    action: { label: "Open Teacher Inbox", href: `${getAppBaseUrl()}/m/${mosque.slug}/teacher/inbox` },
+  }).catch(() => null);
 }
 
 export const runtime = "nodejs";
@@ -286,6 +295,7 @@ async function upsertPaidEnrollmentFromSession(session: Stripe.Checkout.Session,
   });
 
   await notifyProgramManagers(supabase, programId, {
+    eventKey: `stripe-checkout:${session.id}`,
     title: "Payment received",
     body: isOneTimePayment ? `${studentLabel} completed payment and enrollment is active.` : `${studentLabel} started a subscription and enrollment is active.`,
   });
@@ -397,6 +407,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   });
 
   await notifyProgramManagers(supabase, subscriptionRow.program_id, {
+    eventKey: `stripe-invoice-paid:${invoice.id}`,
     title: "Payment received",
     body: `A recurring payment from ${studentLabel} was received.`,
   });
@@ -430,6 +441,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   });
 
   await notifyProgramManagers(supabase, subscriptionRow.program_id, {
+    eventKey: `stripe-invoice-failed:${invoice.id}`,
     title: "Payment failed",
     body: `A payment from ${studentLabel} failed. Billing will show as past due.`,
   });

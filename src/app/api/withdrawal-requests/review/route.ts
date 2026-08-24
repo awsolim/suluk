@@ -1,6 +1,8 @@
 import { cancelProgramSubscription } from "@/lib/stripe/subscriptions";
 import { sendPushNotification } from "@/lib/push/send-push";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { getAppBaseUrl } from "@/lib/email/resend";
+import { sendProfileNotificationEmails } from "@/lib/email/notifications";
 
 export const runtime = "nodejs";
 
@@ -79,12 +81,20 @@ export async function POST(request: Request) {
       }
 
       if (program && mosque) {
+        const message = `Your withdrawal request for ${program.title} was rejected. Enrollment remains active.`;
         void sendPushNotification(supabase, {
           recipientProfileIds: [withdrawalRequest.parent_profile_id, withdrawalRequest.student_profile_id],
           title: "Withdrawal request rejected",
-          body: `Your withdrawal request for ${program.title} was rejected. Enrollment remains active.`,
+          body: message,
           url: `/m/${mosque.slug}/portal/classes`,
         });
+        await sendProfileNotificationEmails(supabase, [withdrawalRequest.parent_profile_id, withdrawalRequest.student_profile_id], {
+          eventKey: `withdrawal-reviewed:${withdrawalRequest.id}:rejected`,
+          subject: `Withdrawal request update: ${program.title}`,
+          title: "Withdrawal Request Rejected",
+          message,
+          action: { label: "Open Classes", href: `${getAppBaseUrl()}/m/${mosque.slug}/portal/classes` },
+        }).catch(() => null);
       }
 
       return Response.json({ ok: true });
@@ -124,12 +134,20 @@ export async function POST(request: Request) {
     }
 
     if (program && mosque) {
+      const message = `Your withdrawal request for ${program.title} was approved. Enrollment has ended.`;
       void sendPushNotification(supabase, {
         recipientProfileIds: [withdrawalRequest.parent_profile_id, withdrawalRequest.student_profile_id],
         title: "Withdrawal request approved",
-        body: `Your withdrawal request for ${program.title} was approved. Enrollment has ended.`,
+        body: message,
         url: `/m/${mosque.slug}/portal/classes`,
       });
+      await sendProfileNotificationEmails(supabase, [withdrawalRequest.parent_profile_id, withdrawalRequest.student_profile_id], {
+        eventKey: `withdrawal-reviewed:${withdrawalRequest.id}:approved`,
+        subject: `Withdrawal request approved: ${program.title}`,
+        title: "Withdrawal Request Approved",
+        message,
+        action: { label: "Open Classes", href: `${getAppBaseUrl()}/m/${mosque.slug}/portal/classes` },
+      }).catch(() => null);
     }
 
     return Response.json({ ok: true });

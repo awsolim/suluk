@@ -3,6 +3,7 @@ import { sendPushNotification } from "@/lib/push/send-push";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getAppBaseUrl } from "@/lib/email/resend";
 import { sendProfileNotificationEmails } from "@/lib/email/notifications";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -96,6 +97,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not send instructor notification.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.instructors.notify",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

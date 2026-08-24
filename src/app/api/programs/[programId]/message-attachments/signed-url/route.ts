@@ -1,6 +1,7 @@
 import { normalizeMessageAttachments } from "@/lib/messages/attachments";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return Response.json({ urls });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create signed attachment URL.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.message-attachments.signed-url",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

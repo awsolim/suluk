@@ -712,23 +712,30 @@ export function TeacherInboxData({ slug }: { slug: string }) {
       return false;
     }
 
-    const response = await fetch("/api/withdrawal-requests/review", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ withdrawalRequestId: request.id, status }),
-    });
-    const result = (await response.json().catch(() => ({}))) as { error?: string };
-    setBusyWithdrawalId(null);
-    if (!response.ok) {
-      setError(result.error ?? "Could not review withdrawal request.");
+    try {
+      const response = await fetch("/api/withdrawal-requests/review", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ withdrawalRequestId: request.id, status }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        setError(result.error ?? "Could not review withdrawal request.");
+        return false;
+      }
+      window.dispatchEvent(new Event("tareeqah:notifications-changed"));
+      await refetch();
+      return true;
+    } catch {
+      setError("Could not review withdrawal request. Check your connection and try again.");
       return false;
+    } finally {
+      setBusyWithdrawalId(null);
     }
-    window.dispatchEvent(new Event("tareeqah:notifications-changed"));
-    await refetch();
-    return true;
   }
 
   async function clearPastWithdrawal(requestId: string) {

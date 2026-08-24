@@ -830,25 +830,31 @@ export function InboxAnnouncementsData({ slug }: { slug: string }) {
       return;
     }
 
-    const response = await fetch("/api/stripe/confirm", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ checkoutSessionId }),
-    });
-    const payload = (await response.json()) as { ok?: boolean; error?: string };
-    setPaymentConfirming(false);
+    try {
+      const response = await fetch("/api/stripe/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ checkoutSessionId }),
+        signal: AbortSignal.timeout(25000),
+      });
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
 
-    if (!response.ok || !payload.ok) {
-      setError(payload.error ?? "Payment succeeded, but registration could not be completed.");
-      return;
+      if (!response.ok || !payload.ok) {
+        setError(payload.error ?? "Payment succeeded, but registration could not be completed.");
+        return;
+      }
+
+      setPaymentNotice("success");
+      window.dispatchEvent(new Event("tareeqah:notifications-changed"));
+      await loadInbox();
+    } catch {
+      setError("Payment succeeded, but we couldn't confirm registration in time. Refresh to check — your class may already be added.");
+    } finally {
+      setPaymentConfirming(false);
     }
-
-    setPaymentNotice("success");
-    window.dispatchEvent(new Event("tareeqah:notifications-changed"));
-    await loadInbox();
   }
 
   // One RPC call instead of mosque -> profile -> children -> [enrollments+requests+

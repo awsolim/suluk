@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,10 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save push subscription.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "push.subscribe",
+      message,
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/server";
 import { activateEnrollmentForRequest, selectedTrackIdsForRequest } from "@/lib/programs/enrollment-activation";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -133,6 +134,10 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not confirm payment.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "stripe.confirm",
+      message,
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

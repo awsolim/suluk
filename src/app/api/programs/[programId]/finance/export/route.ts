@@ -1,5 +1,6 @@
 import { requireProgramFinanceAccess } from "@/lib/finance/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -92,6 +93,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ prog
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not export payments.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.finance.export",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

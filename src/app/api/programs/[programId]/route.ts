@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database, Json } from "@/lib/supabase/types";
 import { recordFinanceAuditEvent } from "@/lib/finance/audit";
 import { deriveLifecycleStatus, normalizeProgramStatusFields, validateProgramStatusCombination, type ProgramStatusFields } from "@/lib/programs/status";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -570,6 +571,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ pr
     return Response.json({ program });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not update program.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.patch",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }
@@ -604,6 +610,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ p
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not delete program.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.delete",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

@@ -1693,7 +1693,7 @@ export function ProgramApplyData({ slug, programId }: { slug: string; programId:
         .select("id, student_profile_id");
 
       if (parentInsertError) {
-        setSubmitError(parentInsertError.message);
+        setSubmitError(friendlyErrorMessage(parentInsertError, "Could not submit this application."));
         setSubmitBusy(false);
         return;
       }
@@ -1701,7 +1701,7 @@ export function ProgramApplyData({ slug, programId }: { slug: string; programId:
       if (parentRequestIds.length) {
         const { error: timestampError } = await supabase.from("enrollment_requests").update({ requested_at: submittedAt, teacher_dismissed_at: null }).in("id", parentRequestIds);
         if (timestampError) {
-          setSubmitError(timestampError.message);
+          setSubmitError(friendlyErrorMessage(timestampError, "Could not submit this application."));
           setSubmitBusy(false);
           return;
         }
@@ -1765,7 +1765,7 @@ export function ProgramApplyData({ slug, programId }: { slug: string; programId:
       .select("id");
 
     if (insertError) {
-      setSubmitError(insertError.message);
+      setSubmitError(friendlyErrorMessage(insertError, "Could not submit this application."));
       setSubmitBusy(false);
       return;
     }
@@ -1773,7 +1773,7 @@ export function ProgramApplyData({ slug, programId }: { slug: string; programId:
     if (requestIds.length) {
       const { error: timestampError } = await supabase.from("enrollment_requests").update({ requested_at: submittedAt, teacher_dismissed_at: null }).in("id", requestIds);
       if (timestampError) {
-        setSubmitError(timestampError.message);
+        setSubmitError(friendlyErrorMessage(timestampError, "Could not submit this application."));
         setSubmitBusy(false);
         return;
       }
@@ -2057,18 +2057,31 @@ export function RegistrationConfirmationData({ slug, requestId }: { slug: string
 
   async function confirmPaidSession(sessionId: string) {
     setConfirmBusy(true);
+    setActionError(null);
     const token = await getCurrentAccessToken();
     if (!token) {
       setConfirmBusy(false);
+      setActionError("Payment succeeded. Please sign in again to finish registration.");
       return;
     }
-    await fetch("/api/stripe/confirm", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ checkoutSessionId: sessionId }),
-    });
-    await loadRegistration();
-    setConfirmBusy(false);
+    try {
+      const response = await fetch("/api/stripe/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ checkoutSessionId: sessionId }),
+        signal: AbortSignal.timeout(25000),
+      });
+      const result = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!response.ok || !result.ok) {
+        setActionError(result.error ?? "Payment succeeded, but registration could not be completed.");
+        return;
+      }
+      await loadRegistration();
+    } catch {
+      setActionError("Payment succeeded, but we couldn't confirm registration in time. Refresh to check — your class may already be added.");
+    } finally {
+      setConfirmBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -2097,18 +2110,24 @@ export function RegistrationConfirmationData({ slug, requestId }: { slug: string
       setActionError("Please sign in again.");
       return;
     }
-    const response = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ enrollmentRequestId: requestId }),
-    });
-    const result = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
-    if (!response.ok || !result.url) {
+    try {
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enrollmentRequestId: requestId }),
+        signal: AbortSignal.timeout(25000),
+      });
+      const result = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!response.ok || !result.url) {
+        setActionError(result.error ?? "Could not start checkout.");
+        return;
+      }
+      window.location.href = result.url;
+    } catch {
+      setActionError("Could not start checkout. Check your connection and try again.");
+    } finally {
       setCheckoutBusy(false);
-      setActionError(result.error ?? "Could not start checkout.");
-      return;
     }
-    window.location.href = result.url;
   }
 
   async function handleConfirmFree() {
@@ -2150,7 +2169,7 @@ export function RegistrationConfirmationData({ slug, requestId }: { slug: string
   }
 
   if (error) {
-    return <EmptyState title="Registration unavailable" text={error} />;
+    return <EmptyState title="Registration unavailable" text={error} onRetry={() => void loadRegistration()} />;
   }
 
   if (!mosque || !program || !request) {
@@ -2900,6 +2919,13 @@ export function PortalAccountData({ slug }: { slug: string }) {
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsError, setPaymentsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(initialSession === undefined);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reportProblemModalOpen, setReportProblemModalOpen] = useState(false);
+  const [reportProblemMessage, setReportProblemMessage] = useState("");
+  const [reportProblemBusy, setReportProblemBusy] = useState(false);
+  const [reportProblemError, setReportProblemError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   async function loadBillingPayments() {
@@ -2912,7 +2938,7 @@ export function PortalAccountData({ slug }: { slug: string }) {
       .order("paid_at", { ascending: false })
       .limit(100);
     if (error) {
-      setPaymentsError(error.message);
+      setPaymentsError(friendlyErrorMessage(error, "Could not load payment history."));
       setPaymentsLoading(false);
       return;
     }
@@ -3000,13 +3026,22 @@ export function PortalAccountData({ slug }: { slug: string }) {
       setLoading(false);
 
       const supabase = createSupabaseBrowserClient();
-      const [{ data: profileRow }, access] = await Promise.all([
+      const [{ data: fetchedProfileRow }, access] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
         loadCachedUserAccess(slug, session.user.id),
       ]);
 
       if (!active) {
         return;
+      }
+
+      // A confirmed email change updates auth.users directly (via the link in the
+      // confirmation email); there's no trigger mirroring that into profiles.email,
+      // so reconcile it here rather than showing a stale address.
+      let profileRow = fetchedProfileRow;
+      if (profileRow && session.user.email && profileRow.email?.toLowerCase() !== session.user.email.toLowerCase()) {
+        profileRow = { ...profileRow, email: session.user.email };
+        void supabase.from("profiles").update({ email: session.user.email, updated_at: new Date().toISOString() }).eq("id", session.user.id);
       }
 
       const resolvedAccountType = (profileRow?.account_type ?? access.accountType ?? "").toLowerCase();
@@ -3042,6 +3077,76 @@ export function PortalAccountData({ slug }: { slug: string }) {
   function handleLogout() {
     router.replace(`/m/${slug}/login`);
     void performClientLogout();
+  }
+
+  async function handleDeleteAccount() {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    const supabase = createSupabaseBrowserClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setDeleteError("Please sign in again before deleting your account.");
+      setDeleteBusy(false);
+      return;
+    }
+
+    const response = await fetch("/api/account/delete", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation: "DELETE" }),
+    });
+    const result = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!response.ok || !result.ok) {
+      setDeleteError(result.error ?? "Account could not be deleted.");
+      setDeleteBusy(false);
+      return;
+    }
+
+    setDeleteModalOpen(false);
+    setDeleteBusy(false);
+    router.replace(`/m/${slug}/login`);
+    void performClientLogout();
+  }
+
+  async function handleReportProblem() {
+    const message = reportProblemMessage.trim();
+    if (!message) {
+      setReportProblemError("Please describe what happened.");
+      return;
+    }
+    setReportProblemBusy(true);
+    setReportProblemError(null);
+    const supabase = createSupabaseBrowserClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setReportProblemError("Please sign in again before sending a report.");
+      setReportProblemBusy(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/account/report-problem", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ message, url: window.location.href }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const result = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!response.ok || !result.ok) {
+        setReportProblemError(result.error ?? "Report could not be sent.");
+        return;
+      }
+      setReportProblemModalOpen(false);
+      setToast({ tone: "success", message: "Thanks — your report was sent." });
+    } catch {
+      setReportProblemError("Report could not be sent. Check your connection and try again.");
+    } finally {
+      setReportProblemBusy(false);
+    }
   }
 
 
@@ -3190,8 +3295,21 @@ export function PortalAccountData({ slug }: { slug: string }) {
           },
           body: JSON.stringify({ email: nextEmail }),
         });
-        const result = (await response.json()) as { email?: string; profile?: Profile; error?: string };
-        if (!response.ok || !result.email || !result.profile) {
+        const result = (await response.json()) as { pending?: boolean; message?: string; email?: string; profile?: Profile; error?: string };
+        if (!response.ok) {
+          setProfileMessage(result.error ?? "Email could not be updated.");
+          setProfileSaving(false);
+          return;
+        }
+
+        if (result.pending) {
+          setEditingField(null);
+          setToast({ tone: "success", message: result.message ?? "Check your new email inbox to confirm this change." });
+          setProfileSaving(false);
+          return;
+        }
+
+        if (!result.email || !result.profile) {
           setProfileMessage(result.error ?? "Email could not be updated.");
           setProfileSaving(false);
           return;
@@ -3308,6 +3426,15 @@ export function PortalAccountData({ slug }: { slug: string }) {
           <AccountMenuButton icon={<BillingIcon />} label="Billing" onClick={() => openPanel("billing")} />
           <AccountMenuButton icon={<ShieldIcon />} label="Privacy and Security" onClick={() => openPanel("security")} />
           <AccountMenuButton icon={<HomeScreenIcon />} label="Add App to Homescreen" onClick={() => openPanel("homescreen")} />
+          <AccountMenuButton
+            icon={<FlagIcon />}
+            label="Report a Problem"
+            onClick={() => {
+              setReportProblemMessage("");
+              setReportProblemError(null);
+              setReportProblemModalOpen(true);
+            }}
+          />
           <AccountMenuButton icon={<LogoutIcon />} label="Log out" tone="danger" onClick={handleLogout} />
         </nav>
       </>
@@ -3389,6 +3516,21 @@ export function PortalAccountData({ slug }: { slug: string }) {
 
           <PushNotificationToggle />
 
+          <div className="mt-7">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A9399]">Danger zone</p>
+            <div className="mt-2 divide-y divide-[#E6EAED] rounded-[24px] bg-white ring-1 ring-[#E4EAEE]">
+              <AccountMenuButton
+                icon={<TrashIcon />}
+                label="Delete Account"
+                tone="danger"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteModalOpen(true);
+                }}
+              />
+            </div>
+          </div>
+
           {profileMessage ? <p className="mt-5 rounded-2xl bg-[#F0F8FB] px-4 py-3 text-sm leading-6 text-[#257B9C]">{profileMessage}</p> : null}
         </div>
       </>
@@ -3423,7 +3565,7 @@ export function PortalAccountData({ slug }: { slug: string }) {
           {paymentsLoading ? (
             <div className="rounded-[14px] border border-dashed border-[#D6DCE0] bg-[#F8FAFB] p-4 text-sm font-semibold text-[#6B747B]">Loading payment history...</div>
           ) : paymentsError ? (
-            <div className="rounded-[14px] border border-dashed border-[#D6DCE0] bg-[#F8FAFB] p-4 text-sm font-semibold text-[#C0392B]">{paymentsError}</div>
+            <EmptyState title="Could not load payment history" text={paymentsError} onRetry={() => void loadBillingPayments()} />
           ) : !payments?.length ? (
             <StaticAccountNote title="Payments" text="Your payment history will appear here once you register for a paid class." />
           ) : (
@@ -3525,12 +3667,142 @@ export function PortalAccountData({ slug }: { slug: string }) {
       <div className="mx-auto hidden max-w-lg overflow-hidden md:block">
         {renderAccountPanel(desktopPanel)}
       </div>
+      {deleteModalOpen ? (
+        <ConfirmDeleteAccountModal
+          busy={deleteBusy}
+          error={deleteError}
+          onCancel={() => {
+            if (!deleteBusy) setDeleteModalOpen(false);
+          }}
+          onConfirm={handleDeleteAccount}
+        />
+      ) : null}
+      {reportProblemModalOpen ? (
+        <ReportProblemModal
+          message={reportProblemMessage}
+          onMessageChange={setReportProblemMessage}
+          busy={reportProblemBusy}
+          error={reportProblemError}
+          onCancel={() => {
+            if (!reportProblemBusy) setReportProblemModalOpen(false);
+          }}
+          onConfirm={handleReportProblem}
+        />
+      ) : null}
     </section>
   );
 }
 
 function isAccountPanel(value: string): value is AccountPanel {
   return value === "menu" || value === "settings" || value === "family" || value === "billing" || value === "security" || value === "homescreen" || value === "photo";
+}
+
+function ReportProblemModal({
+  message,
+  onMessageChange,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  message: string;
+  onMessageChange: (value: string) => void;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useModalFocusTrap(containerRef, true, onCancel);
+  useHideMobileChromeWhileMounted();
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#26323A]/35 px-5 backdrop-blur-sm">
+      <div ref={containerRef} role="dialog" aria-modal="true" tabIndex={-1} className="w-full max-w-sm rounded-[28px] bg-white p-6 text-[#26323A] shadow-[0_24px_60px_rgba(38,50,58,0.22)] outline-none">
+        <h2 className="text-xl font-semibold">Report a problem</h2>
+        <p className="mt-2 text-sm leading-6 text-[#6B747B]">Tell us what happened. We&apos;ll get your account and current page automatically.</p>
+        <textarea
+          value={message}
+          onChange={(event) => onMessageChange(event.target.value)}
+          disabled={busy}
+          rows={5}
+          placeholder="What went wrong?"
+          className="mt-4 w-full rounded-[14px] border border-[#D6DCE0] px-3 py-2 text-sm text-[#26323A] outline-none focus:border-[#26323A] disabled:opacity-60"
+        />
+        {error ? <p className="mt-3 text-sm font-medium text-[#C83F31]">{error}</p> : null}
+        <div className="mt-6 grid gap-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy || !message.trim()}
+            className="min-h-11 rounded-[8px] bg-[#26323A] px-4 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy ? "Sending..." : "Send report"}
+          </button>
+          <button type="button" onClick={onCancel} disabled={busy} className="min-h-11 rounded-[8px] bg-[#EEF3F5] px-4 text-sm font-semibold text-[#52616A] disabled:opacity-60">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ConfirmDeleteAccountModal({
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [confirmText, setConfirmText] = useState("");
+  useModalFocusTrap(containerRef, true, onCancel);
+  useHideMobileChromeWhileMounted();
+  const canConfirm = confirmText.trim().toUpperCase() === "DELETE";
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#26323A]/35 px-5 backdrop-blur-sm">
+      <div ref={containerRef} role="dialog" aria-modal="true" tabIndex={-1} className="w-full max-w-sm rounded-[28px] bg-white p-6 text-[#26323A] shadow-[0_24px_60px_rgba(38,50,58,0.22)] outline-none">
+        <h2 className="text-xl font-semibold text-[#C83F31]">Delete account?</h2>
+        <p className="mt-2 text-sm leading-6 text-[#6B747B]">
+          This permanently deletes your account, cancels any active subscriptions, and removes any child profiles that have no other
+          parent linked. This can&apos;t be undone.
+        </p>
+        <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-[#8A9399]">
+          Type DELETE to confirm
+          <input
+            type="text"
+            value={confirmText}
+            onChange={(event) => setConfirmText(event.target.value)}
+            disabled={busy}
+            className="mt-2 h-11 w-full rounded-[10px] border border-[#D6DCE0] px-3 text-sm font-medium normal-case tracking-normal text-[#26323A] outline-none focus:border-[#C83F31] disabled:opacity-60"
+            autoComplete="off"
+          />
+        </label>
+        {error ? <p className="mt-3 text-sm font-medium text-[#C83F31]">{error}</p> : null}
+        <div className="mt-6 grid gap-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy || !canConfirm}
+            className="min-h-11 rounded-[8px] bg-[#C83F31] px-4 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy ? "Deleting..." : "Delete my account"}
+          </button>
+          <button type="button" onClick={onCancel} disabled={busy} className="min-h-11 rounded-[8px] bg-[#EEF3F5] px-4 text-sm font-semibold text-[#52616A] disabled:opacity-60">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 function ConfirmStudentRescindModal({
@@ -16383,7 +16655,7 @@ export function StudentWithdrawalRequestData({ slug, programId }: { slug: string
     });
     setSubmitting(false);
     if (submitError) {
-      setMessage({ tone: "error", text: submitError.message });
+      setMessage({ tone: "error", text: friendlyErrorMessage(submitError, "Could not submit this withdrawal request.") });
       return;
     }
     setExistingRequestsByStudentId((current) => ({
@@ -19499,6 +19771,15 @@ function HomeScreenIcon() {
       <path d="M11 18h2" />
       <path d="M12 7v7" />
       <path d="m9.5 9.5 2.5-2.5 2.5 2.5" />
+    </svg>
+  );
+}
+
+function FlagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 21V4" />
+      <path d="M5 4h13l-3 4.5L18 13H5" />
     </svg>
   );
 }

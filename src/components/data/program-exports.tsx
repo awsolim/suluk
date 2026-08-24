@@ -49,6 +49,7 @@ async function downloadProgramExport(programId: string, type: ProgramExportType,
 
   const response = await fetch(`/api/programs/${programId}/exports?type=${encodeURIComponent(type)}`, {
     headers: { authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30000),
   });
   if (!response.ok) {
     const result = (await response.json().catch(() => ({}))) as { error?: string };
@@ -141,10 +142,15 @@ function ProgramExportsData({ slug, programId }: { slug: string; programId: stri
   async function handleDownload() {
     setBusy(true);
     setError(null);
-    const result = await downloadProgramExport(programId, selectedType, program?.title ?? selectedOption.title);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
+    try {
+      const result = await downloadProgramExport(programId, selectedType, program?.title ?? selectedOption.title);
+      if (!result.ok) {
+        setError(result.error);
+      }
+    } catch {
+      setError("Could not export class data. Check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
   }
 

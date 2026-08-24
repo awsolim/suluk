@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -84,6 +85,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     return Response.json({ path, url: data.publicUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not upload media.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "mosques.media.upload",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

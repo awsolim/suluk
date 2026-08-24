@@ -3,6 +3,7 @@ import { recordFinanceAuditEvent } from "@/lib/finance/audit";
 import { requireProgramManageAccess } from "@/lib/programs/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/lib/supabase/types";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -392,6 +393,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ prog
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not export class data.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.exports",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

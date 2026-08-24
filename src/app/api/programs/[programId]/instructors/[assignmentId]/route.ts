@@ -1,5 +1,6 @@
 import { requireProgramManageAccess } from "@/lib/programs/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ p
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Could not remove instructor." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Could not remove instructor.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.instructors.delete",
+      message,
+      context: { ...(await params) },
+    });
+    return Response.json({ error: message }, { status: 500 });
   }
 }

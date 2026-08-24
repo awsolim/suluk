@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
+import { friendlyErrorMessage } from "@/lib/errors";
+import { EmptyState } from "@/components/data/empty-state";
+import { AppLoadingSkeleton } from "@/components/data/data-loading";
 
 type AuditEvent = Database["public"]["Tables"]["program_finance_audit_events"]["Row"];
 
@@ -14,35 +17,41 @@ export function FinanceAuditTrail({ programId }: { programId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const loadAuditTrail = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     const supabase = createSupabaseBrowserClient();
-    Promise.all([
-      supabase.from("programs").select("title").eq("id", programId).maybeSingle(),
-      supabase.from("program_finance_audit_events").select("*").eq("program_id", programId).order("created_at", { ascending: false }),
-    ]).then(async ([programResult, auditResult]) => {
-      if (!active) return;
+    try {
+      const [programResult, auditResult] = await Promise.all([
+        supabase.from("programs").select("title").eq("id", programId).maybeSingle(),
+        supabase.from("program_finance_audit_events").select("*").eq("program_id", programId).order("created_at", { ascending: false }),
+      ]);
       if (auditResult.error) {
-        setError(auditResult.error.message);
+        setError(friendlyErrorMessage(auditResult.error, "Could not load the audit trail."));
         setLoading(false);
         return;
       }
       const rows = auditResult.data ?? [];
       const actorIds = Array.from(new Set(rows.map((event) => event.actor_profile_id).filter(Boolean) as string[]));
       const { data: profiles } = actorIds.length ? await supabase.from("profiles").select("id, full_name, email").in("id", actorIds) : { data: [] };
-      if (!active) return;
       setProgramTitle(programResult.data?.title ?? "Class audit trail");
       setEvents(rows);
       setActors(Object.fromEntries((profiles ?? []).map((profile) => [profile.id, profile.full_name || profile.email || "Staff member"])));
       setLoading(false);
-    });
-    return () => { active = false; };
+    } catch (caught) {
+      setError(friendlyErrorMessage(caught, "Could not load the audit trail."));
+      setLoading(false);
+    }
   }, [programId]);
+
+  useEffect(() => {
+    void loadAuditTrail();
+  }, [loadAuditTrail]);
 
   const sortedEvents = useMemo(() => [...events].sort((a, b) => sort === "newest" ? b.created_at.localeCompare(a.created_at) : a.created_at.localeCompare(b.created_at)), [events, sort]);
 
-  if (loading) return <div className="p-5 text-sm font-semibold text-[#6B747B]">Loading audit trail…</div>;
-  if (error) return <div className="p-5 text-sm font-semibold text-[#C0392B]">{error}</div>;
+  if (loading) return <AppLoadingSkeleton layout="management" label="Loading audit trail" />;
+  if (error) return <EmptyState title="Could not load audit trail" text={error} onRetry={() => void loadAuditTrail()} />;
 
   return (
     <section className="min-h-[calc(100vh-120px)] bg-white px-4 pb-28 pt-5 text-[#26323A]">

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { BootScreen } from "@/components/pwa/boot-screen";
 import { PwaRegistrar } from "@/components/pwa/pwa-registrar";
+import { GlobalErrorReporter } from "@/components/monitoring/global-error-reporter";
 import { iconCacheVersion, loadTenantBrandingFromHost } from "@/lib/tenant-branding";
 import "./globals.css";
 
@@ -56,6 +57,7 @@ export default function RootLayout({
       <body>
         <PwaRegistrar />
         <BootScreen />
+        <GlobalErrorReporter />
         {children}
       </body>
     </html>

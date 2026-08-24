@@ -2,6 +2,7 @@ import { getStripe, shouldUseStripeConnect } from "@/lib/stripe/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database, Json } from "@/lib/supabase/types";
 import { deriveLifecycleStatus, normalizeProgramStatusFields, validateProgramStatusCombination, type ProgramStatusFields } from "@/lib/programs/status";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -465,6 +466,10 @@ export async function POST(request: Request) {
     return Response.json({ program });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create program.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.create",
+      message,
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

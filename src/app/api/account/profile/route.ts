@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -51,6 +52,11 @@ export async function POST(request: Request) {
     if (profileError || !profile) return Response.json({ error: profileError?.message ?? "Profile could not be reloaded." }, { status: 500 });
     return Response.json({ profile });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Account could not be updated." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Account could not be updated.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "account.profile",
+      message,
+    });
+    return Response.json({ error: message }, { status: 500 });
   }
 }

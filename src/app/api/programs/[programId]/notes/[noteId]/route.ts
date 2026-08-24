@@ -1,5 +1,6 @@
 import { normalizeMessageAttachments } from "@/lib/messages/attachments";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -56,6 +57,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ p
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not delete note.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.notes.delete",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

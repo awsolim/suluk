@@ -3,6 +3,7 @@ import { cancelProgramSubscription, isActiveStripeSubscriptionStatus } from "@/l
 import { requireProgramFinanceAccess } from "@/lib/finance/auth";
 import { recordFinanceAuditEvent } from "@/lib/finance/audit";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -98,6 +99,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not end subscription.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.finance.end-subscription",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

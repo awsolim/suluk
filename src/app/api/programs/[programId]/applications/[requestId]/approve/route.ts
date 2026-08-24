@@ -3,6 +3,7 @@ import { recordFinanceAuditEvent } from "@/lib/finance/audit";
 import { createApprovedPaymentTerms } from "@/lib/finance/payment-terms";
 import { sendPushNotification } from "@/lib/push/send-push";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -137,6 +138,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not approve application.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.applications.approve",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

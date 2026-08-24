@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -80,6 +81,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return Response.json({ path, token: signedUpload.token, url: data.publicUrl, mediaType });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not upload media.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.media.upload",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

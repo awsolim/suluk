@@ -4,6 +4,7 @@ import { isActiveStripeSubscriptionStatus } from "@/lib/stripe/subscriptions";
 import { requireProgramFinanceAccess } from "@/lib/finance/auth";
 import { recordFinanceAuditEvent } from "@/lib/finance/audit";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -227,6 +228,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return Response.json({ url: session.url });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not change price.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.finance.change-price",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

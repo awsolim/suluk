@@ -1,5 +1,6 @@
 import { sendEnrollmentReviewedEmail } from "@/lib/email/enrollment";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not send enrollment email.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "email.enrollment-request-reviewed",
+      message,
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

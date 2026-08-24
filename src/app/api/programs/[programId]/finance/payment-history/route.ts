@@ -1,5 +1,6 @@
 import { requireProgramFinanceAccess } from "@/lib/finance/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load payment history.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.finance.payment-history",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

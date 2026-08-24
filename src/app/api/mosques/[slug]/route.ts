@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -115,6 +116,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ sl
     return Response.json({ mosque: updatedMosque });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not update masjid.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "mosques.slug",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

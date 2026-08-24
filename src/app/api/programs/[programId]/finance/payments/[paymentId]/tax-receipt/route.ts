@@ -2,6 +2,7 @@ import { requireProgramFinanceAccess } from "@/lib/finance/auth";
 import { recordFinanceAuditEvent } from "@/lib/finance/audit";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/lib/supabase/types";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 type ProgramPaymentUpdate = Database["public"]["Tables"]["program_payments"]["Update"];
 
@@ -100,6 +101,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ pr
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not update tax receipt status.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "programs.finance.payments.tax-receipt",
+      message,
+      context: { ...(await params) },
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

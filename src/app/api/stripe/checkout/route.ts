@@ -3,6 +3,7 @@ import { getCheckoutOrigin, getRegistrationConfirmationPath } from "@/lib/stripe
 import { ensurePaymentTermsForRequest, markPaymentTermsCheckoutStarted } from "@/lib/finance/payment-terms";
 import { toProgramStatusFields } from "@/lib/programs/status";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { logServerError } from "@/lib/monitoring/log-error";
 
 export const runtime = "nodejs";
 
@@ -196,6 +197,10 @@ export async function POST(request: Request) {
     return Response.json({ url: session.url });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start checkout.";
+    await logServerError(createSupabaseServiceClient(), {
+      source: "stripe.checkout",
+      message,
+    });
     return Response.json({ error: message }, { status: 500 });
   }
 }

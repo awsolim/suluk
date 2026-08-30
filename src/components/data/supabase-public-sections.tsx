@@ -6415,7 +6415,7 @@ export function TeacherProgramSettingsData({ slug, programId, returnHref }: { sl
   const [builderStatus, setBuilderStatus] = useState<ProgramBuilderStatus>(() => defaultBuilderStatus());
   const [program, setProgram] = useState<Program | null>(null);
   const [details, setDetails] = useState<ProgramDetails | null>(null);
-  const [isDirector, setIsDirector] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
   const [isAdminEditor, setIsAdminEditor] = useState(false);
   const [directorOptions, setDirectorOptions] = useState<DirectorOption[]>([]);
   const [selectedDirectorId, setSelectedDirectorId] = useState("");
@@ -6497,9 +6497,9 @@ export function TeacherProgramSettingsData({ slug, programId, returnHref }: { sl
         return;
       }
 
-      const [{ data: programRow, error: programError }, { data: directorAllowed }, detailResult, outcomeResult, contentSectionResult, faqResult, mediaResult, trackResult, sessionResult, transferRuleResult] = await Promise.all([
+      const [{ data: programRow, error: programError }, { data: editAllowed }, detailResult, outcomeResult, contentSectionResult, faqResult, mediaResult, trackResult, sessionResult, transferRuleResult] = await Promise.all([
         supabase.from("programs").select("*").eq("id", programId).eq("mosque_id", mosque.id).maybeSingle(),
-        supabase.rpc("is_program_director", { check_program_id: programId }),
+        supabase.rpc("can_edit_program_details", { check_program_id: programId }),
         supabase.from("program_details").select("*").eq("program_id", programId).maybeSingle(),
         supabase.from("program_outcomes").select("*").eq("program_id", programId).order("sort_order", { ascending: true }),
         supabase.from("program_content_sections").select("*").eq("program_id", programId).order("sort_order", { ascending: true }),
@@ -6522,7 +6522,7 @@ export function TeacherProgramSettingsData({ slug, programId, returnHref }: { sl
 
       setProgram(programRow ?? null);
       setDetails(detailResult.data ?? null);
-      setIsDirector(Boolean(directorAllowed));
+      setCanEdit(Boolean(editAllowed));
       setIsAdminEditor(false);
       setDirectorOptions([]);
       if (programRow) {
@@ -7129,7 +7129,7 @@ export function TeacherProgramSettingsData({ slug, programId, returnHref }: { sl
     return <EmptyState title="Class not found" text="This class may no longer be available." />;
   }
 
-  if (!isDirector) {
+  if (!canEdit) {
     return <EmptyState title="Director access required" text="Only the class director can edit this class." />;
   }
 
@@ -10236,6 +10236,7 @@ type TeacherRosterSnapshot = {
   students: Array<{ enrollment: Enrollment; profile: StudentDisplay | null; parent?: ParentDisplay | null; subscription?: ProgramSubscription | null; trackIds: string[] }>;
   waitlist: RequestWithContext[];
   currentUserId: string | null;
+  canDecideApplications: boolean;
   error: string | null;
 };
 
@@ -10249,6 +10250,7 @@ const emptyTeacherRosterSnapshot: TeacherRosterSnapshot = {
   students: [],
   waitlist: [],
   currentUserId: null,
+  canDecideApplications: false,
   error: null,
 };
 
@@ -10272,6 +10274,7 @@ export function TeacherStudentsData({ slug, programId }: { slug: string; program
   const [selectedRosterDays, setSelectedRosterDays] = useState<string[]>(() => (sessionDayParam ? [sessionDayParam] : [...scheduleDayOptions]));
   const [sessionFilterActive, setSessionFilterActive] = useState(Boolean(sessionTrackIdParam || sessionDayParam));
   const [waitlist, setWaitlist] = useState<RequestWithContext[]>([]);
+  const [canDecideApplications, setCanDecideApplications] = useState(false);
   const [studentSearch, setStudentSearch] = useState(originStudentId ?? "");
   const [genderFilter, setGenderFilter] = useState("all");
   const [studentSort, setStudentSort] = useState<"first" | "last" | "age">("first");
@@ -10334,6 +10337,7 @@ export function TeacherStudentsData({ slug, programId }: { slug: string; program
       profiles: StudentDisplay[];
       links: Array<{ child_profile_id: string; parent_profile_id: string }>;
       parents: ParentDisplay[];
+      canDecideApplications: boolean;
     } | null;
 
     if (!snapshot || !snapshot.mosque) {
@@ -10427,6 +10431,7 @@ export function TeacherStudentsData({ slug, programId }: { slug: string; program
         parent: request.parent_profile_id ? ((parentRows ?? []).find((parent) => parent.id === request.parent_profile_id) as ParentDisplay | undefined) ?? null : null,
         track: request.program_track_id ? activeTrackRows.find((track) => track.id === request.program_track_id) ?? null : null,
       })),
+      canDecideApplications: Boolean(snapshot.canDecideApplications),
       error: null,
     };
   }
@@ -10443,6 +10448,7 @@ export function TeacherStudentsData({ slug, programId }: { slug: string; program
     setTrackDaysById(rosterSnapshot.trackDaysById);
     setTrackSessionKeysById(rosterSnapshot.trackSessionKeysById);
     setCurrentUserId(rosterSnapshot.currentUserId);
+    setCanDecideApplications(rosterSnapshot.canDecideApplications);
     setStudents(rosterSnapshot.students);
     setWaitlist(rosterSnapshot.waitlist);
     setError(rosterSnapshot.error);
@@ -10873,8 +10879,8 @@ export function TeacherStudentsData({ slug, programId }: { slug: string; program
               <TeacherRequestCard
                 key={request.id}
                 request={request}
-                onAccept={() => setReviewTarget({ request, action: "approved" })}
-                onReject={() => setReviewTarget({ request, action: "rejected" })}
+                onAccept={canDecideApplications ? () => setReviewTarget({ request, action: "approved" }) : undefined}
+                onReject={canDecideApplications ? () => setReviewTarget({ request, action: "rejected" }) : undefined}
               />
             ))}
           </section>
@@ -11704,7 +11710,7 @@ function FinanceActionModal({
     program.price_annual_cents ??
     0;
   const [price, setPrice] = useState((initialPriceCents / 100).toFixed(2).replace(/\.00$/, ""));
-  const [billingMode, setBillingMode] = useState<"monthly" | "one_time">(row.paymentTerms?.payment_type === "pay_in_full" || row.subscription?.payment_type === "annual" ? "one_time" : "monthly");
+  const [billingMode, setBillingMode] = useState<PaymentType>(row.paymentTerms?.payment_type === "pay_in_full" || row.paymentTerms?.payment_type === "annual" || row.subscription?.payment_type === "annual" ? "annual" : "monthly");
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [timing, setTiming] = useState<"period_end" | "immediate">("period_end");
@@ -11852,20 +11858,19 @@ function FinanceActionModal({
                   className="h-11 rounded-[10px] border border-[#B9C3C8] px-3 text-sm font-semibold outline-none focus:border-[#2F8FB3] disabled:opacity-60"
                 />
                 <div className="grid grid-cols-2 overflow-hidden rounded-[10px] border border-[#D6DCE0]">
-                  {(["monthly", "one_time"] as const).map((mode) => (
+                  {(["monthly", "annual"] as const).map((mode) => (
                     <button
                       key={mode}
                       type="button"
-                      disabled={busy || Boolean(checkoutUrl) || (mode === "one_time" && Boolean(program.is_ongoing))}
+                      disabled={busy || Boolean(checkoutUrl)}
                       onClick={() => setBillingMode(mode)}
                       className={cn("px-3 text-xs font-semibold disabled:opacity-60", billingMode === mode ? "bg-[#17624F] text-white" : "bg-white text-[#52616A]")}
                     >
-                      {mode === "monthly" ? "Monthly" : "One-time"}
+                      {paymentTypeLabel(mode, program)}
                     </button>
                   ))}
                 </div>
               </div>
-              {program.is_ongoing ? <p className="text-xs leading-5 text-[#7B858C]">Ongoing programs only support monthly billing.</p> : null}
               <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#7B858C]">
                 Internal note (optional)
                 <input
@@ -12339,6 +12344,7 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<EditorToastState | null>(null);
+  const [canDecide, setCanDecide] = useState(true);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -12390,7 +12396,8 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
     const snapshot = data as unknown as {
       error: string | null;
       program: Program | null;
-      canManage: boolean;
+      canView: boolean;
+      canDecide: boolean;
       requests: EnrollmentRequest[];
       tracks: ProgramTrack[];
       subscriptions: ProgramSubscription[];
@@ -12406,15 +12413,17 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
       return;
     }
 
-    if (!snapshot.canManage) {
+    if (!snapshot.canView) {
       setProgram(snapshot.program);
       setRows([]);
       setAuditEvents([]);
       setAuditActorsById({});
-      setError("You don't have permission to manage applications for this class.");
+      setError("You don't have permission to view applications for this class.");
       setLoading(false);
       return;
     }
+
+    setCanDecide(Boolean(snapshot.canDecide));
 
     const programRow = snapshot.program;
     const requestRows = snapshot.requests ?? [];
@@ -12698,8 +12707,8 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
                 request={request}
                 tracksById={tracksById}
                 busy={switchRequestBusyId === request.id}
-                onApprove={() => void decideTrackSwitchRequest(request.id, "approved")}
-                onReject={() => void decideTrackSwitchRequest(request.id, "rejected")}
+                onApprove={canDecide ? () => void decideTrackSwitchRequest(request.id, "approved") : undefined}
+                onReject={canDecide ? () => void decideTrackSwitchRequest(request.id, "rejected") : undefined}
               />
             ))}
           </div>
@@ -12736,6 +12745,7 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
           slug={slug}
           mode={mode}
           requestId={detailsTarget.request.id}
+          canDecide={canDecide}
           onClose={() => setDetailsTarget(null)}
           onChanged={loadApplications}
         />
@@ -15899,7 +15909,7 @@ function ProgramPaymentOptionsDisplay({ program, tracks = [] }: { program: Progr
   );
 }
 
-function paymentTypeLabel(type: PaymentType, program: Pick<Program, "is_ongoing">): string {
+export function paymentTypeLabel(type: PaymentType, program: Pick<Program, "is_ongoing">): string {
   if (type === "monthly") {
     return "Monthly";
   }
@@ -18466,6 +18476,7 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
   const [toast, setToast] = useState<EditorToastState | null>(null);
   const [latestInviteCode, setLatestInviteCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [permissionBusyId, setPermissionBusyId] = useState<string | null>(null);
 
   // One RPC call instead of [director-check+assignments+inactive-events] -> profiles, as two
   // sequential stages. Reuses the existing is_program_director() function server-side.
@@ -18539,6 +18550,23 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
 
     await navigator.clipboard.writeText(code).catch(() => null);
     setToast({ tone: "success", message: "Instructor code copied to clipboard." });
+  }
+
+  async function setInstructorPermission(assignmentId: string, field: "can_view_applications" | "can_decide_applications" | "can_edit_class" | "can_manage_finances", value: boolean) {
+    setPermissionBusyId(assignmentId);
+    const supabase = createSupabaseBrowserClient();
+    const update: Partial<ProgramTeacher> = { [field]: value };
+    const { error: updateError } = await supabase
+      .from("program_teachers")
+      .update(update)
+      .eq("id", assignmentId)
+      .eq("role", "instructor");
+    setPermissionBusyId(null);
+    if (updateError) {
+      setToast({ tone: "error", message: friendlyErrorMessage(updateError, "Could not update this permission.") });
+      return;
+    }
+    await loadStaff();
   }
 
   async function removeInstructor(assignmentId: string) {
@@ -18623,16 +18651,44 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
       <section className="space-y-2">
         <h2 className="px-1 text-lg font-semibold text-[#26323A]">Active Instructors</h2>
         {activeInstructors.length ? (
-          <div className="divide-y divide-[#EEF2F4]">
+          <div className="space-y-3">
             {activeInstructors.map((assignment) => (
-              <div key={assignment.id} className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-[#26323A]">{assignment.profile?.full_name || assignment.profile?.email || "Assigned instructor"}</p>
-                  <p className="truncate text-sm text-[#6B747B]">{assignment.profile?.email || (assignment.teacher_profile_id ? "Profile hidden until permissions are applied" : "Instructor")}</p>
+              <div key={assignment.id} className="rounded-[18px] border border-[#EEF2F4] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[#26323A]">{assignment.profile?.full_name || assignment.profile?.email || "Assigned instructor"}</p>
+                    <p className="truncate text-sm text-[#6B747B]">{assignment.profile?.email || (assignment.teacher_profile_id ? "Profile hidden until permissions are applied" : "Instructor")}</p>
+                  </div>
+                  <button type="button" disabled={busy} onClick={() => void removeInstructor(assignment.id)} className="min-h-9 shrink-0 rounded-full px-3 text-sm font-semibold text-[#C83F31] disabled:opacity-60">
+                    Remove
+                  </button>
                 </div>
-                <button type="button" disabled={busy} onClick={() => void removeInstructor(assignment.id)} className="min-h-9 shrink-0 rounded-full px-3 text-sm font-semibold text-[#C83F31] disabled:opacity-60">
-                  Remove
-                </button>
+                <div className="mt-3 grid grid-cols-2 gap-1.5">
+                  <InstructorPermissionToggle
+                    label="View Applications"
+                    active={assignment.can_view_applications}
+                    disabled={permissionBusyId === assignment.id}
+                    onClick={() => void setInstructorPermission(assignment.id, "can_view_applications", !assignment.can_view_applications)}
+                  />
+                  <InstructorPermissionToggle
+                    label="Accept / Decline"
+                    active={assignment.can_decide_applications}
+                    disabled={permissionBusyId === assignment.id}
+                    onClick={() => void setInstructorPermission(assignment.id, "can_decide_applications", !assignment.can_decide_applications)}
+                  />
+                  <InstructorPermissionToggle
+                    label="Edit Class"
+                    active={assignment.can_edit_class}
+                    disabled={permissionBusyId === assignment.id}
+                    onClick={() => void setInstructorPermission(assignment.id, "can_edit_class", !assignment.can_edit_class)}
+                  />
+                  <InstructorPermissionToggle
+                    label="Manage Finances"
+                    active={assignment.can_manage_finances}
+                    disabled={permissionBusyId === assignment.id}
+                    onClick={() => void setInstructorPermission(assignment.id, "can_manage_finances", !assignment.can_manage_finances)}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -18672,6 +18728,34 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
         {inactiveInstructors.length ? <div className="divide-y divide-[#EEF2F4]">{inactiveInstructors.map((event) => <div key={event.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate font-semibold text-[#26323A]">{event.profile?.full_name || event.profile?.email || "Former instructor"}</p><p className="text-xs text-[#7B858C]">Inactive since {formatFinanceDate(event.created_at)}</p></div><button type="button" disabled={busy} onClick={() => void clearInactiveInstructor(event.id)} className="shrink-0 text-xs font-semibold text-[#52616A] disabled:opacity-50">Clear permanently</button></div>)}</div> : <MiniEmpty text="No inactive instructors." />}
       </section>
     </section>
+  );
+}
+
+function InstructorPermissionToggle({
+  label,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex min-h-9 items-center justify-between gap-2 rounded-[10px] border px-2.5 py-1.5 text-left text-xs font-semibold transition-colors disabled:opacity-50",
+        active ? "border-[#17624F] bg-[#EAF7F1] text-[#17624F]" : "border-[#D6DCE0] bg-white text-[#7B858C]",
+      )}
+    >
+      <span className="truncate">{label}</span>
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", active ? "bg-[#17624F]" : "bg-[#D6DCE0]")} aria-hidden />
+    </button>
   );
 }
 

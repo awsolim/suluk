@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 type ChangePriceRequestBody = {
   studentProfileId?: string;
   amountCents?: number;
-  billingMode?: "monthly" | "one_time";
+  billingMode?: "monthly" | "annual";
   note?: string;
 };
 
@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     if (!body.studentProfileId) {
       return Response.json({ error: "Missing student." }, { status: 400 });
     }
-    const billingMode = body.billingMode === "one_time" ? "one_time" : "monthly";
+    const billingMode = body.billingMode === "annual" ? "annual" : "monthly";
     const amountCents = Math.round(body.amountCents ?? 0);
     if (!amountCents || amountCents < 50) {
       return Response.json({ error: "Enter a valid price." }, { status: 400 });
@@ -55,9 +55,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     if (!program.stripe_product_id) {
       return Response.json({ error: "Stripe is not configured for this class yet." }, { status: 409 });
     }
-    if (program.is_ongoing && billingMode === "one_time") {
-      return Response.json({ error: "Ongoing programs can't use Pay in Full — choose Monthly instead." }, { status: 409 });
-    }
 
     const { data: mosque, error: mosqueError } = await supabase.from("mosques").select("*").eq("id", program.mosque_id).maybeSingle();
     if (mosqueError || !mosque) {
@@ -81,7 +78,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       );
     }
 
-    const [{ data: link }, { data: student }] = await Promise.all([
+    const [{ data: link }, { data: student }, { data: fallbackRequest }] = await Promise.all([
       supabase
         .from("parent_child_links")
         .select("parent_profile_id")
@@ -89,17 +86,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
         .eq("child_profile_id", body.studentProfileId)
         .maybeSingle(),
       supabase.from("profiles").select("full_name, email").eq("id", body.studentProfileId).maybeSingle(),
+      existingSubscription?.enrollment_request_id
+        ? Promise.resolve({ data: null })
+        : supabase
+            .from("enrollment_requests")
+            .select("id")
+            .eq("program_id", programId)
+            .eq("student_profile_id", body.studentProfileId)
+            .eq("status", "approved")
+            .order("reviewed_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
     ]);
     const parentProfileId = link?.parent_profile_id ?? existingSubscription?.parent_profile_id ?? null;
     const { data: parent } = parentProfileId
       ? await supabase.from("profiles").select("full_name, email").eq("id", parentProfileId).maybeSingle()
       : { data: null };
+    const enrollmentRequestId = existingSubscription?.enrollment_request_id ?? fallbackRequest?.id ?? null;
 
     const stripeRequestOptions = shouldUseStripeConnect() && mosque.stripe_account_id ? { stripeAccount: mosque.stripe_account_id } : undefined;
     const stripe = getStripe();
     const now = new Date().toISOString();
     const note = body.note?.trim() || null;
-    const paymentTermsType = billingMode === "monthly" ? "monthly" : "pay_in_full";
+    // "annual" means two different things depending on program duration, mirroring
+    // src/lib/finance/payment-terms.ts::paymentTypeFor: a genuine recurring yearly Stripe
+    // subscription for an ongoing program, or a one-time pay-in-full lump sum for a
+    // fixed-duration program.
+    const isRecurringAnnual = billingMode === "annual" && Boolean(program.is_ongoing);
+    const paymentTermsType = billingMode === "monthly" ? "monthly" : isRecurringAnnual ? "annual" : "pay_in_full";
     const billingMonths =
       billingMode === "monthly" && program.billing_end_behavior === "fixed_months"
         ? program.billing_duration_months ?? program.duration_months ?? null
@@ -112,12 +126,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       .eq("student_profile_id", body.studentProfileId)
       .not("status", "in", "(superseded,cancelled,ended)");
 
+    const isRecurring = billingMode === "monthly" || isRecurringAnnual;
+    const recurringInterval: "month" | "year" = billingMode === "monthly" ? "month" : "year";
+
     const { data: terms, error: termsError } = await supabase
       .from("program_payment_terms")
       .insert({
         mosque_id: program.mosque_id,
         program_id: programId,
-        enrollment_request_id: existingSubscription?.enrollment_request_id ?? null,
+        enrollment_request_id: enrollmentRequestId,
         student_profile_id: body.studentProfileId,
         parent_profile_id: parentProfileId,
         payment_type: paymentTermsType,
@@ -125,7 +142,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
         currency: "cad",
         billing_months: billingMonths,
         billing_start_behavior: billingMode === "monthly" ? program.billing_start_behavior ?? "on_payment" : "not_applicable",
-        billing_end_behavior: billingMode === "monthly" && billingMonths ? "fixed_month_count" : billingMode === "monthly" ? "ongoing_until_cancelled" : "not_applicable",
+        billing_end_behavior: billingMode === "monthly" ? (billingMonths ? "fixed_month_count" : "ongoing_until_cancelled") : isRecurringAnnual ? "ongoing_until_cancelled" : "not_applicable",
         program_start_date_snapshot: program.start_date ?? null,
         program_end_date_snapshot: program.end_date ?? null,
         status: "checkout_pending",
@@ -145,7 +162,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
         product: program.stripe_product_id,
         currency: "cad",
         unit_amount: amountCents,
-        ...(billingMode === "monthly" ? { recurring: { interval: "month" as const } } : {}),
+        ...(isRecurring ? { recurring: { interval: recurringInterval } } : {}),
         metadata: {
           payment_terms_id: terms.id,
           program_id: programId,
@@ -164,6 +181,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     const returnPath = getPortalReturnPath(origin, mosque.slug);
     const checkoutMetadata = {
       payment_terms_id: terms.id,
+      enrollment_request_id: enrollmentRequestId ?? "",
       program_id: programId,
       mosque_id: program.mosque_id,
       student_profile_id: body.studentProfileId,
@@ -177,12 +195,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
     const session = await stripe.checkout.sessions.create(
       {
-        mode: billingMode === "monthly" ? "subscription" : "payment",
+        mode: isRecurring ? "subscription" : "payment",
         line_items: [{ price: dynamicPrice.id, quantity: 1 }],
         customer_email: parent?.email ?? student?.email ?? undefined,
         success_url: `${origin}${returnPath}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}${returnPath}?payment=cancelled`,
-        ...(billingMode === "monthly" ? { subscription_data: { metadata: checkoutMetadata } } : {}),
+        ...(isRecurring ? { subscription_data: { metadata: checkoutMetadata } } : {}),
         metadata: checkoutMetadata,
       },
       stripeRequestOptions,
@@ -194,7 +212,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
         program_id: programId,
         student_profile_id: body.studentProfileId,
         parent_profile_id: parentProfileId,
-        enrollment_request_id: existingSubscription?.enrollment_request_id ?? null,
+        enrollment_request_id: enrollmentRequestId,
         payment_terms_id: terms.id,
         stripe_account_id: mosque.stripe_account_id,
         stripe_checkout_session_id: session.id,
@@ -221,7 +239,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       studentProfileId: body.studentProfileId,
       actorProfileId: user.id,
       eventType: "price_changed",
-      summary: `New checkout link sent to ${student?.full_name || student?.email || "this student"} for ${(amountCents / 100).toFixed(2)} CAD (${billingMode === "monthly" ? "monthly" : "one-time"}).${note ? ` Note: ${note}` : ""}`,
+      summary: `New checkout link sent to ${student?.full_name || student?.email || "this student"} for ${(amountCents / 100).toFixed(2)} CAD (${billingMode === "monthly" ? "monthly" : isRecurringAnnual ? "annual subscription" : "pay in full"}).${note ? ` Note: ${note}` : ""}`,
       metadata: { paymentTermsId: terms.id, amountCents, billingMode, billingMonths, stripePriceId: dynamicPrice.id, checkoutSessionId: session.id, note },
     });
 

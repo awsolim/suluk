@@ -13,10 +13,12 @@ import {
   callApplicationAction,
   displayAge,
   formatFinanceDate,
+  paymentTypeLabel,
   programPaymentOptions,
   programStatusBadgeToneClass,
   scheduleSummary,
 } from "@/components/data/supabase-public-sections";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useModalFocusTrap } from "@/hooks/use-modal-behavior";
 import { friendlyErrorMessage } from "@/lib/errors";
 import {
@@ -112,6 +114,7 @@ export function ApplicationReviewOverlay({
   slug,
   mode,
   requestId,
+  canDecide = true,
   onClose,
   onChanged,
 }: {
@@ -119,6 +122,7 @@ export function ApplicationReviewOverlay({
   slug: string;
   mode: "teacher" | "admin";
   requestId: string;
+  canDecide?: boolean;
   onClose: () => void;
   onChanged: () => Promise<void> | void;
 }) {
@@ -283,7 +287,7 @@ export function ApplicationReviewOverlay({
   return (
     <>
       <EditorToast toast={toast} onClose={() => setToast(null)} />
-      <ApplicationDetailsDrawer row={row} program={program} slug={slug} mode={mode} trackEnrolledCount={trackEnrolledCount} onClose={onClose} onAction={handleAction} />
+      <ApplicationDetailsDrawer row={row} program={program} slug={slug} mode={mode} trackEnrolledCount={trackEnrolledCount} canDecide={canDecide} onClose={onClose} onAction={handleAction} />
       {decisionAction ? (
         <ApplicationDecisionModal
           target={{ request: { ...row.request, program, student: row.student, parent: row.parent, track: row.track }, action: decisionAction }}
@@ -340,6 +344,7 @@ function ApplicationDetailsDrawer({
   slug,
   mode,
   trackEnrolledCount = null,
+  canDecide = true,
   onClose,
   onAction,
 }: {
@@ -348,6 +353,7 @@ function ApplicationDetailsDrawer({
   slug: string;
   mode: "teacher" | "admin";
   trackEnrolledCount?: number | null;
+  canDecide?: boolean;
   onClose: () => void;
   onAction: (action: ApplicationRowAction) => void;
 }) {
@@ -383,7 +389,7 @@ function ApplicationDetailsDrawer({
   const status = getApplicationStatus(row.request);
   const payStatus = getApplicationPaymentStatus(row.request, program, row.subscription);
   const basePath = mode === "admin" ? `/m/${slug}/admin/programs` : `/m/${slug}/teacher/classes`;
-  const availableActions = getApplicationRowActions(status).filter((action) => action !== "view");
+  const availableActions = canDecide ? getApplicationRowActions(status).filter((action) => action !== "view") : [];
   const decisionActions = availableActions.filter((action): action is "approve" | "waitlist" | "reject" => action === "approve" || action === "waitlist" || action === "reject");
   const secondaryActions = availableActions.filter((action) => action !== "approve" && action !== "waitlist" && action !== "reject");
 
@@ -631,9 +637,9 @@ function ApplicationChangePriceModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const isAnnual = row.request.payment_type === "annual";
-  const [paymentType, setPaymentType] = useState<"monthly" | "annual">(isAnnual ? "annual" : "monthly");
-  const initialCents = isAnnual
+  const requestedPaymentType: PaymentType = row.request.payment_type === "annual" ? "annual" : "monthly";
+  const [paymentType, setPaymentType] = useState<PaymentType>(requestedPaymentType);
+  const initialCents = requestedPaymentType === "annual"
     ? row.request.approved_price_annual_cents ?? program.price_annual_cents ?? 0
     : row.request.approved_price_monthly_cents ?? program.price_monthly_cents ?? 0;
   const [price, setPrice] = useState((initialCents / 100).toFixed(2).replace(/\.00$/, ""));
@@ -642,11 +648,30 @@ function ApplicationChangePriceModal({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmPlanMismatch, setConfirmPlanMismatch] = useState(false);
 
   const paymentOptions = programPaymentOptions(program);
-  const allowedTypes = paymentOptions.length ? paymentOptions.map((option) => option.type) : (["monthly"] as PaymentType[]);
+  // Always include the applicant's actual plan even if the program's live pricing config has
+  // since changed — the toggle must never silently hide what they were approved under.
+  const allowedTypes = Array.from(new Set([requestedPaymentType, ...(paymentOptions.length ? paymentOptions.map((option) => option.type) : (["monthly"] as PaymentType[]))]));
 
-  async function handleSave() {
+  function selectPaymentType(type: PaymentType) {
+    setPaymentType(type);
+    const cents = type === "annual"
+      ? row.request.approved_price_annual_cents ?? program.price_annual_cents ?? 0
+      : row.request.approved_price_monthly_cents ?? program.price_monthly_cents ?? 0;
+    setPrice((cents / 100).toFixed(2).replace(/\.00$/, ""));
+  }
+
+  function handleSaveClick() {
+    if (!bypassPayment && paymentType !== requestedPaymentType) {
+      setConfirmPlanMismatch(true);
+      return;
+    }
+    void performSave();
+  }
+
+  async function performSave() {
     setError(null);
     if (bypassPayment) {
       setBusy(true);
@@ -727,29 +752,34 @@ function ApplicationChangePriceModal({
             </button>
           </div>
         ) : (
-          <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-            <input
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-              disabled={busy}
-              inputMode="decimal"
-              className="h-11 rounded-[10px] border border-[#B9C3C8] px-3 text-sm font-semibold outline-none focus:border-[#2F8FB3] disabled:opacity-60"
-            />
-            {allowedTypes.length > 1 ? (
-              <div className="grid grid-cols-2 overflow-hidden rounded-[10px] border border-[#D6DCE0]">
-                {allowedTypes.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setPaymentType(type)}
-                    className={cn("px-3 text-xs font-semibold disabled:opacity-60", paymentType === type ? "bg-[#17624F] text-white" : "bg-white text-[#52616A]")}
-                  >
-                    {type === "monthly" ? "Monthly" : program.is_ongoing ? "Annual Subscription" : "Pay in Full"}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <input
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
+                disabled={busy}
+                inputMode="decimal"
+                className="h-11 rounded-[10px] border border-[#B9C3C8] px-3 text-sm font-semibold outline-none focus:border-[#2F8FB3] disabled:opacity-60"
+              />
+              {allowedTypes.length > 1 ? (
+                <div className="grid grid-cols-2 overflow-hidden rounded-[10px] border border-[#D6DCE0]">
+                  {allowedTypes.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => selectPaymentType(type)}
+                      className={cn("px-3 text-xs font-semibold disabled:opacity-60", paymentType === type ? "bg-[#17624F] text-white" : "bg-white text-[#52616A]")}
+                    >
+                      {paymentTypeLabel(type, program)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <p className="text-xs font-medium text-[#7B858C]">
+              Applicant requested {paymentTypeLabel(requestedPaymentType, program)}.{paymentType !== requestedPaymentType ? " You are changing this plan." : ""}
+            </p>
           </div>
         )}
 
@@ -769,7 +799,7 @@ function ApplicationChangePriceModal({
             <button
               type="button"
               disabled={busy}
-              onClick={handleSave}
+              onClick={handleSaveClick}
               className="min-h-10 rounded-[10px] bg-[#26323A] px-4 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
             >
               {busy ? "Saving..." : bypassPayment ? "Save" : "Save Price"}
@@ -777,6 +807,18 @@ function ApplicationChangePriceModal({
           </div>
         </div>
       </div>
+      {confirmPlanMismatch ? (
+        <ConfirmModal
+          title="This isn't the plan the applicant requested"
+          text={`${row.student?.full_name || "This student"} requested ${paymentTypeLabel(requestedPaymentType, program)}. You're about to set this to ${paymentTypeLabel(paymentType, program)} instead. Continue?`}
+          confirmLabel="Yes, continue"
+          onConfirm={() => {
+            setConfirmPlanMismatch(false);
+            void performSave();
+          }}
+          onCancel={() => setConfirmPlanMismatch(false)}
+        />
+      ) : null}
     </div>,
     document.body,
   );
@@ -880,15 +922,19 @@ export function ApplicationDecisionModal({
   onClose: () => void;
   onSubmit: (options: { paymentType?: PaymentType; priceMonthlyCents?: number | null; priceAnnualCents?: number | null; paymentBypassed?: boolean; paymentBypassedExternal?: boolean; note?: string | null }) => void;
 }) {
-  const requestedPaymentType = target.request.payment_type === "annual" ? "annual" : "monthly";
+  const requestedPaymentType: PaymentType = target.request.payment_type === "annual" ? "annual" : "monthly";
   const programOptions = target.request.program ? programPaymentOptions(target.request.program) : [];
-  const allowedPaymentTypes = programOptions.length ? programOptions.map((option) => option.type) : (["monthly"] as PaymentType[]);
-  const billingMode = allowedPaymentTypes.includes(requestedPaymentType) ? requestedPaymentType : allowedPaymentTypes[0] ?? "monthly";
-  const defaultPriceCents = requestEffectivePriceCents(billingMode, target.request);
-  const defaultPrice = (defaultPriceCents / 100).toFixed(2).replace(/\.00$/, "");
-  const [price, setPrice] = useState(defaultPrice === "0" ? "" : defaultPrice);
+  const otherPaymentType: PaymentType = requestedPaymentType === "monthly" ? "annual" : "monthly";
+  const canSwitchPlan = programOptions.some((option) => option.type === otherPaymentType);
+  const [billingMode, setBillingMode] = useState<PaymentType>(requestedPaymentType);
+  const [price, setPrice] = useState(() => {
+    const cents = requestEffectivePriceCents(requestedPaymentType, target.request);
+    const formatted = (cents / 100).toFixed(2).replace(/\.00$/, "");
+    return formatted === "0" ? "" : formatted;
+  });
   const [bypassPayment, setBypassPayment] = useState(false);
   const [bypassExternal, setBypassExternal] = useState(false);
+  const [confirmPlanMismatch, setConfirmPlanMismatch] = useState(false);
   const studentName = target.request.student?.full_name?.trim() || "this student";
   const title = target.action === "approved" ? "Accept application" : target.action === "waitlisted" ? "Waitlist application" : "Reject application";
   const defaultNote =
@@ -901,6 +947,13 @@ export function ApplicationDecisionModal({
           : "Your application was accepted. Complete checkout to activate enrollment.";
   const [note, setNote] = useState(defaultNote);
 
+  function selectBillingMode(type: PaymentType) {
+    setBillingMode(type);
+    const cents = requestEffectivePriceCents(type, target.request);
+    const formatted = (cents / 100).toFixed(2).replace(/\.00$/, "");
+    setPrice(formatted === "0" ? "" : formatted);
+  }
+
   function submit() {
     const numericPrice = Math.max(0, Math.round(Number(price || "0") * 100));
     onSubmit({
@@ -911,6 +964,14 @@ export function ApplicationDecisionModal({
       priceAnnualCents: target.action === "approved" && !bypassPayment && billingMode === "annual" ? numericPrice : null,
       note: note.trim() || defaultNote,
     });
+  }
+
+  function handleConfirmClick() {
+    if (target.action === "approved" && !bypassPayment && billingMode !== requestedPaymentType) {
+      setConfirmPlanMismatch(true);
+      return;
+    }
+    submit();
   }
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -965,8 +1026,27 @@ export function ApplicationDecisionModal({
               <>
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wide text-[#6B747B]">Payment plan chosen by applicant</span>
-                  <p className="mt-1 text-sm font-semibold text-[#26323A]">{billingMode === "monthly" ? "Monthly" : target.request.program?.is_ongoing ? "Annual Subscription" : "Pay in Full"}</p>
+                  <p className="mt-1 text-sm font-semibold text-[#26323A]">{target.request.program ? paymentTypeLabel(requestedPaymentType, target.request.program) : requestedPaymentType}</p>
                 </div>
+                {canSwitchPlan && target.request.program ? (
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 overflow-hidden rounded-[10px] border border-[#D6DCE0]">
+                      {[requestedPaymentType, otherPaymentType].map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => selectBillingMode(type)}
+                          className={cn("px-3 py-2 text-xs font-semibold transition-colors", billingMode === type ? "bg-[#17624F] text-white" : "bg-white text-[#52616A]")}
+                        >
+                          {paymentTypeLabel(type, target.request.program!)}
+                        </button>
+                      ))}
+                    </div>
+                    {billingMode !== requestedPaymentType ? (
+                      <p className="text-xs font-medium text-[#C0392B]">This is not what the applicant requested.</p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <label className="block">
                   <span className="text-xs font-semibold uppercase tracking-wide text-[#6B747B]">{billingMode === "monthly" ? "Monthly price" : target.request.program?.is_ongoing ? "Annual subscription price" : "Pay in Full price"}</span>
                   <input value={price} onChange={(event) => setPrice(event.target.value)} inputMode="decimal" className="mt-1 h-11 w-full rounded-[10px] border border-[#B9C3C8] px-3 text-sm font-semibold outline-none focus:border-[#2F8FB3]" />
@@ -990,11 +1070,23 @@ export function ApplicationDecisionModal({
           <button type="button" onClick={onClose} disabled={busy} className="min-h-10 px-3 text-sm font-semibold text-[#6B747B] disabled:opacity-50">
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={busy} className="min-h-10 rounded-[10px] bg-[#17624F] px-4 text-sm font-semibold text-white disabled:opacity-60">
+          <button type="button" onClick={handleConfirmClick} disabled={busy} className="min-h-10 rounded-[10px] bg-[#17624F] px-4 text-sm font-semibold text-white disabled:opacity-60">
             {busy ? "Working..." : "Confirm"}
           </button>
         </div>
       </div>
+      {confirmPlanMismatch && target.request.program ? (
+        <ConfirmModal
+          title="This isn't the plan the applicant requested"
+          text={`${studentName} requested ${paymentTypeLabel(requestedPaymentType, target.request.program)}. You're about to approve this as ${paymentTypeLabel(billingMode, target.request.program)} instead. Continue?`}
+          confirmLabel="Yes, continue"
+          onConfirm={() => {
+            setConfirmPlanMismatch(false);
+            submit();
+          }}
+          onCancel={() => setConfirmPlanMismatch(false)}
+        />
+      ) : null}
     </div>,
     document.body,
   );

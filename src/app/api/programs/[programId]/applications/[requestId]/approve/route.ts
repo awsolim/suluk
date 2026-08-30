@@ -1,4 +1,4 @@
-import { requireProgramManageAccess } from "@/lib/programs/auth";
+import { requireProgramApplicationDecisionAccess } from "@/lib/programs/auth";
 import { recordFinanceAuditEvent } from "@/lib/finance/audit";
 import { createApprovedPaymentTerms } from "@/lib/finance/payment-terms";
 import { sendPushNotification } from "@/lib/push/send-push";
@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       return Response.json({ error: "Not authenticated." }, { status: 401 });
     }
 
-    const access = await requireProgramManageAccess(supabase, programId, user.id);
+    const access = await requireProgramApplicationDecisionAccess(supabase, programId, user.id);
     if (!access.ok) {
       return Response.json({ error: access.error }, { status: access.status });
     }

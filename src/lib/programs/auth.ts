@@ -30,3 +30,50 @@ export async function requireProgramManageAccess(
   }
   return { ok: true };
 }
+
+/**
+ * Server-side check for deciding (approve/waitlist/reject/reopen/etc.) applications: admin,
+ * director, or an instructor explicitly granted can_decide_applications on this program.
+ */
+export async function requireProgramApplicationDecisionAccess(
+  supabase: SupabaseClient<Database>,
+  programId: string,
+  userId: string,
+): Promise<ProgramAuthResult> {
+  const { data: canDecide, error } = await supabase.rpc("can_decide_program_applications", {
+    check_program_id: programId,
+    check_profile_id: userId,
+  });
+
+  if (error) {
+    return { ok: false, status: 500, error: error.message };
+  }
+  if (!canDecide) {
+    return { ok: false, status: 403, error: "You don't have permission to decide applications for this class." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Server-side check for editing class details: admin, director, or an instructor explicitly
+ * granted can_edit_class on this program. Deliberately not used for deleting a class — that
+ * stays director/admin-only via requireProgramManageAccess.
+ */
+export async function requireProgramEditAccess(
+  supabase: SupabaseClient<Database>,
+  programId: string,
+  userId: string,
+): Promise<ProgramAuthResult> {
+  const { data: canEdit, error } = await supabase.rpc("can_edit_program_details", {
+    check_program_id: programId,
+    check_profile_id: userId,
+  });
+
+  if (error) {
+    return { ok: false, status: 500, error: error.message };
+  }
+  if (!canEdit) {
+    return { ok: false, status: 403, error: "You don't have permission to edit this class." };
+  }
+  return { ok: true };
+}

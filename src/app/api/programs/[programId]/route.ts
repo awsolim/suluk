@@ -218,6 +218,15 @@ async function canManageProgram(programId: string, userId: string) {
   return !error && Boolean(data);
 }
 
+async function canEditProgram(programId: string, userId: string) {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase.rpc("can_edit_program_details", {
+    check_program_id: programId,
+    check_profile_id: userId,
+  });
+  return !error && Boolean(data);
+}
+
 function billingDefaultsChanged(existingProgram: Database["public"]["Tables"]["programs"]["Row"], updatePayload: Record<string, unknown>) {
   const billingFields = [
     "is_paid",
@@ -247,7 +256,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ pr
       return Response.json({ error: auth.error }, { status: 401 });
     }
 
-    if (!(await canManageProgram(programId, auth.userId))) {
+    if (!(await canEditProgram(programId, auth.userId))) {
       return Response.json({ error: "Director access required." }, { status: 403 });
     }
 

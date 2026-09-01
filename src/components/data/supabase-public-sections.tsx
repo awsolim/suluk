@@ -630,7 +630,7 @@ async function getCurrentAccessToken() {
   return sessionData.session?.access_token ?? null;
 }
 
-type ApplicationActionEndpoint = "approve" | "waitlist" | "reject" | "cancel-approval" | "change-price" | "waive" | "note" | "confirm" | "reopen" | "cancel-registration";
+type ApplicationActionEndpoint = "approve" | "waitlist" | "reject" | "cancel-approval" | "change-price" | "waive" | "note" | "confirm" | "reopen" | "cancel-registration" | "delete";
 
 export async function callApplicationAction<T = Record<string, unknown>>(
   programId: string,
@@ -12329,7 +12329,6 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
   const [program, setProgram] = useState<Program | null>(null);
   const [rows, setRows] = useState<ApplicationRow[]>([]);
   const [auditEvents, setAuditEvents] = useState<ProgramFinanceAuditEvent[]>([]);
-  const [auditActorsById, setAuditActorsById] = useState<Record<string, Profile>>({});
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [payStatusFilter, setPayStatusFilter] = useState("all");
@@ -12417,7 +12416,6 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
       setProgram(snapshot.program);
       setRows([]);
       setAuditEvents([]);
-      setAuditActorsById({});
       setError("You don't have permission to view applications for this class.");
       setLoading(false);
       return;
@@ -12439,8 +12437,6 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
       requestTrackIdsByRequestId.set(linkRow.enrollment_request_id, [...(requestTrackIdsByRequestId.get(linkRow.enrollment_request_id) ?? []), linkRow.program_track_id]);
     }
 
-    const auditActorIds = Array.from(new Set(auditRows.map((event) => event.actor_profile_id).filter(Boolean) as string[]));
-
     setProgram(programRow);
     setTracks(trackRows);
     setRows(
@@ -12454,7 +12450,6 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
       })),
     );
     setAuditEvents(auditRows);
-    setAuditActorsById(Object.fromEntries(profileRows.filter((profile) => auditActorIds.includes(profile.id)).map((profile) => [profile.id, profile])));
     setTrackSwitchRequests(
       switchRows.map((request) => ({
         ...request,
@@ -12715,29 +12710,9 @@ export function ProgramApplicationsData({ slug, programId, mode = "teacher" }: {
         </section>
       ) : null}
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[#26323A]">Audit Trail</h2>
-          <span className="rounded-full bg-[#EEF6F7] px-2.5 py-1 text-xs font-semibold text-[#17624F]">{auditEvents.length}</span>
-        </div>
-        <div className="divide-y divide-[#EEF2F4]">
-          {auditEvents.length ? (
-            auditEvents.map((event) => (
-              <div key={event.id} className="py-3">
-                <div className="flex items-center gap-2">
-                  {event.event_type === "manual_note" ? (
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", programStatusBadgeToneClass("neutral"))}>Note</span>
-                  ) : null}
-                  <p className="text-sm font-semibold text-[#26323A]">{financeAuditSummaryWithActor(event, auditActorsById)}</p>
-                </div>
-                <p className="mt-0.5 text-xs text-[#7B858C]">{formatFinanceDate(event.created_at)} - {event.event_type.replace(/_/g, " ")}</p>
-              </div>
-            ))
-          ) : (
-            <p className="py-3 text-sm font-semibold text-[#7B858C]">No activity yet.</p>
-          )}
-        </div>
-      </section>
+      <Link href={`${mode === "admin" ? `/m/${slug}/admin/programs` : `/m/${slug}/teacher/classes`}/${programId}/applications/audit`} className="inline-flex min-h-11 items-center rounded-full bg-[#EEF6F7] px-4 text-sm font-semibold text-[#17624F]">
+        View audit trail{auditEvents.length ? ` (${auditEvents.length})` : ""}
+      </Link>
 
       {detailsTarget ? (
         <ApplicationReviewOverlay
@@ -18477,6 +18452,7 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
   const [latestInviteCode, setLatestInviteCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [permissionBusyId, setPermissionBusyId] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // One RPC call instead of [director-check+assignments+inactive-events] -> profiles, as two
   // sequential stages. Reuses the existing is_program_director() function server-side.
@@ -18550,6 +18526,10 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
 
     await navigator.clipboard.writeText(code).catch(() => null);
     setToast({ tone: "success", message: "Instructor code copied to clipboard." });
+    setCopiedCode(code);
+    window.setTimeout(() => {
+      setCopiedCode((current) => (current === code ? null : current));
+    }, 2000);
   }
 
   async function setInstructorPermission(assignmentId: string, field: "can_view_applications" | "can_decide_applications" | "can_edit_class" | "can_manage_finances", value: boolean) {
@@ -18638,10 +18618,13 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
             type="button"
             disabled={!featuredCode}
             onClick={() => void copyInviteCode(featuredCode)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/16 text-white ring-1 ring-white/20 transition-colors hover:bg-white/24 disabled:opacity-45"
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-1 ring-white/20 transition-colors disabled:opacity-45",
+              featuredCode && copiedCode === featuredCode ? "bg-white/8 text-white/50" : "bg-white/16 text-white hover:bg-white/24",
+            )}
             aria-label="Copy instructor code"
           >
-            <CopyIcon />
+            {featuredCode && copiedCode === featuredCode ? <CheckIcon /> : <CopyIcon />}
           </button>
         </div>
       </div>
@@ -18708,8 +18691,16 @@ function ProgramTeacherStaffTools({ program }: { program: Program }) {
                   <p className="mt-0.5 text-sm text-[#7B858C]">Code not claimed yet</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <button type="button" onClick={() => void copyInviteCode(assignment.invite_code)} className="flex h-9 w-9 items-center justify-center rounded-full text-[#52616A] hover:bg-[#EEF3F5]" aria-label="Copy unused instructor code">
-                    <CopyIcon />
+                  <button
+                    type="button"
+                    onClick={() => void copyInviteCode(assignment.invite_code)}
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                      assignment.invite_code && copiedCode === assignment.invite_code ? "text-[#B7C0C5]" : "text-[#52616A] hover:bg-[#EEF3F5]",
+                    )}
+                    aria-label="Copy unused instructor code"
+                  >
+                    {assignment.invite_code && copiedCode === assignment.invite_code ? <CheckIcon /> : <CopyIcon />}
                   </button>
                   <button type="button" disabled={busy} onClick={() => void removeInstructor(assignment.id)} className="min-h-9 rounded-full px-3 text-sm font-semibold text-[#C83F31] disabled:opacity-60">
                     Clear permanently

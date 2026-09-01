@@ -72,6 +72,7 @@ const APPLICATION_ACTION_LABELS: Record<ApplicationRowAction, string> = {
   change_price: "Change Approved Price",
   copy_confirmation_link: "Copy registration link",
   reopen: "Reopen Application",
+  delete_permanently: "Permanently Remove Application",
 };
 
 function requestEffectivePriceCents(paymentType: PaymentType, request: RequestWithContext) {
@@ -134,6 +135,7 @@ export function ApplicationReviewOverlay({
   const [decisionBusy, setDecisionBusy] = useState(false);
   const [changePriceOpen, setChangePriceOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<"cancel_approval" | "reopen" | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [toast, setToast] = useState<EditorToastState | null>(null);
   const [closing, setClosing] = useState(false);
   const [trackEnrolledCount, setTrackEnrolledCount] = useState<number | null>(null);
@@ -242,6 +244,10 @@ export function ApplicationReviewOverlay({
       setConfirmAction(action);
       return;
     }
+    if (action === "delete_permanently") {
+      setDeleteConfirmOpen(true);
+      return;
+    }
     if (action === "change_price") {
       setChangePriceOpen(true);
       return;
@@ -330,6 +336,17 @@ export function ApplicationReviewOverlay({
           onClose={() => setConfirmAction(null)}
           onSuccess={() => {
             setConfirmAction(null);
+            void closeAfterChange();
+          }}
+        />
+      ) : null}
+      {deleteConfirmOpen ? (
+        <ApplicationDeleteConfirmModal
+          row={row}
+          program={program}
+          onClose={() => setDeleteConfirmOpen(false)}
+          onSuccess={() => {
+            setDeleteConfirmOpen(false);
             void closeAfterChange();
           }}
         />
@@ -601,7 +618,9 @@ function ApplicationDetailsDrawer({
                         ? "bg-[#E7F3F8] text-[#257B9C] hover:bg-[#DDEEF6]"
                         : action === "cancel_approval"
                           ? "bg-[#FFF4D6] text-[#8A6418] hover:bg-[#FFE9A8]"
-                          : "border border-[#D6DCE0] bg-white text-[#26323A] hover:bg-[#F7FAFB]",
+                          : action === "delete_permanently"
+                            ? "bg-[#FCE8E4] text-[#C83F31] hover:bg-[#F9D8D1]"
+                            : "border border-[#D6DCE0] bg-white text-[#26323A] hover:bg-[#F7FAFB]",
                     )}
                   >
                     {action === "copy_confirmation_link" ? <CopyIcon /> : null}
@@ -902,6 +921,64 @@ function ApplicationConfirmActionModal({
               className="min-h-10 rounded-[10px] bg-[#26323A] px-4 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
             >
               {busy ? "Saving..." : config.confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ApplicationDeleteConfirmModal({
+  row,
+  program,
+  onClose,
+  onSuccess,
+}: {
+  row: ApplicationRow;
+  program: Program;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleConfirm() {
+    setBusy(true);
+    setError(null);
+    const result = await callApplicationAction(program.id, row.request.id, "delete", {});
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onSuccess();
+    onClose();
+  }
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  useModalFocusTrap(containerRef, true, onClose);
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#26323A]/35 px-5 backdrop-blur-sm">
+      <div ref={containerRef} role="dialog" aria-modal="true" tabIndex={-1} className="w-full max-w-md rounded-[28px] bg-white p-5 text-[#26323A] shadow-[0_24px_70px_rgba(38,50,58,0.22)] outline-none">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#6B747B]">{program.title}</p>
+        <h2 className="mt-1 text-xl font-semibold text-[#C83F31]">Permanently Remove Application</h2>
+        <p className="mt-2 text-sm leading-6 text-[#6B747B]">
+          This permanently deletes {row.student?.full_name || "this student"}&apos;s application to {program.title}. This cannot be undone and the application will no longer appear in this list.
+        </p>
+
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <p className="flex-1 text-xs font-semibold text-[#C0392B]">{error ?? ""}</p>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={onClose} disabled={busy} className="min-h-10 px-3 text-sm font-semibold text-[#6B747B] disabled:opacity-50">Cancel</button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleConfirm}
+              className="min-h-10 rounded-[10px] bg-[#C83F31] px-4 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
+            >
+              {busy ? "Deleting..." : "Delete Permanently"}
             </button>
           </div>
         </div>

@@ -160,7 +160,8 @@ export type ApplicationRowAction =
   | "cancel_approval"
   | "change_price"
   | "copy_confirmation_link"
-  | "reopen";
+  | "reopen"
+  | "delete_permanently";
 
 /** Which row actions are valid for a given application status — single source of truth instead of scattering conditionals in the table/menu. */
 export function getApplicationRowActions(status: ApplicationStatus): ApplicationRowAction[] {
@@ -172,7 +173,7 @@ export function getApplicationRowActions(status: ApplicationStatus): Application
     case "approved_confirmation_required":
       return ["view", "copy_confirmation_link", "change_price", "cancel_approval"];
     case "rejected":
-      return ["view", "reopen"];
+      return ["view", "delete_permanently", "reopen"];
     case "completed_enrolled":
       return ["view"];
     case "cancelled":

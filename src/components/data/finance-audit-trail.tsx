@@ -9,9 +9,13 @@ import { AppLoadingSkeleton } from "@/components/data/data-loading";
 
 type AuditEvent = Database["public"]["Tables"]["program_finance_audit_events"]["Row"];
 
+function humanizeEventType(eventType: string) {
+  return eventType.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function FinanceAuditTrail({ programId }: { programId: string }) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [actors, setActors] = useState<Record<string, string>>({});
+  const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [programTitle, setProgramTitle] = useState("Class audit trail");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [loading, setLoading] = useState(true);
@@ -32,11 +36,13 @@ export function FinanceAuditTrail({ programId }: { programId: string }) {
         return;
       }
       const rows = auditResult.data ?? [];
-      const actorIds = Array.from(new Set(rows.map((event) => event.actor_profile_id).filter(Boolean) as string[]));
-      const { data: profiles } = actorIds.length ? await supabase.from("profiles").select("id, full_name, email").in("id", actorIds) : { data: [] };
+      const profileIds = Array.from(
+        new Set(rows.flatMap((event) => [event.actor_profile_id, event.student_profile_id]).filter(Boolean) as string[]),
+      );
+      const { data: profiles } = profileIds.length ? await supabase.from("profiles").select("id, full_name, email").in("id", profileIds) : { data: [] };
       setProgramTitle(programResult.data?.title ?? "Class audit trail");
       setEvents(rows);
-      setActors(Object.fromEntries((profiles ?? []).map((profile) => [profile.id, profile.full_name || profile.email || "Staff member"])));
+      setProfileNames(Object.fromEntries((profiles ?? []).map((profile) => [profile.id, profile.full_name || profile.email || "Unknown"])));
       setLoading(false);
     } catch (caught) {
       setError(friendlyErrorMessage(caught, "Could not load the audit trail."));
@@ -62,12 +68,23 @@ export function FinanceAuditTrail({ programId }: { programId: string }) {
         </select>
       </div>
       <div className="divide-y divide-[#EEF2F4]">
-        {sortedEvents.map((event) => (
-          <article key={event.id} className="py-4">
-            <p className="text-sm font-semibold leading-5">{event.summary}</p>
-            <p className="mt-1 text-xs text-[#7B858C]">{new Date(event.created_at).toLocaleString()} · {event.actor_profile_id ? actors[event.actor_profile_id] ?? "Staff member" : "System"}</p>
-          </article>
-        ))}
+        {sortedEvents.map((event) => {
+          const actorName = event.actor_profile_id ? profileNames[event.actor_profile_id] ?? "Staff member" : "System";
+          const targetName = event.student_profile_id ? profileNames[event.student_profile_id] ?? null : null;
+          return (
+            <article key={event.id} className="py-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-[#17624F]">{humanizeEventType(event.event_type)}</span>
+                <span className="shrink-0 text-[11px] text-[#9AA5AB]">{new Date(event.created_at).toLocaleString()}</span>
+              </div>
+              <p className="mt-1 text-sm font-semibold leading-5">{event.summary}</p>
+              <p className="mt-1 text-xs text-[#7B858C]">
+                By {actorName}
+                {targetName && targetName !== actorName ? ` · For ${targetName}` : ""}
+              </p>
+            </article>
+          );
+        })}
         {!sortedEvents.length ? <p className="py-10 text-center text-sm font-semibold text-[#7B858C]">No audit events yet.</p> : null}
       </div>
     </section>
